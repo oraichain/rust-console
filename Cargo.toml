@@ -1,8 +1,9 @@
 [package]
-name = "console"
+name = "cosmwasm-testing-util"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 cosmwasm-std = { version = "1.1.9" }
 cosmwasm-schema = "1.1.9"
+bech32 = "0.9.1"
