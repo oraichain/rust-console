@@ -1,10 +1,12 @@
-use std::marker::PhantomData;
-
 use bech32::{FromBase32, ToBase32};
-use cosmwasm_std::{
-    testing::{MockQuerier, MockStorage},
-    Addr, Api, CanonicalAddr, Empty, OwnedDeps, StdError, StdResult, Storage,
+use cosmwasm_vm::{
+    testing::{MockInstanceOptions, MockQuerier, MockStorage},
+    Backend, BackendApi, BackendError, BackendResult, GasInfo, Instance, InstanceOptions, Storage,
 };
+
+const GAS_COST_HUMANIZE: u64 = 44; // TODO: these seem very low
+const GAS_COST_CANONICALIZE: u64 = 55;
+pub const GAS_PER_US: u64 = 1_000_000;
 
 // MockPrecompiles zero pads all human addresses to make them fit the canonical_length
 // it trims off zeros for the reverse operation.
@@ -24,94 +26,52 @@ impl Default for MockApi {
     }
 }
 
-impl Api for MockApi {
-    fn addr_validate(&self, input: &str) -> StdResult<Addr> {
-        let canonical = self.addr_canonicalize(input)?;
-        let normalized = self.addr_humanize(&canonical)?;
-        if input != normalized {
-            return Err(StdError::generic_err(
-                "Invalid input: address not normalized",
-            ));
-        }
-
-        Ok(Addr::unchecked(input))
-    }
-
-    fn addr_canonicalize(&self, input: &str) -> StdResult<CanonicalAddr> {
-        match bech32::decode(input) {
-            Ok((_, canon, _)) => Ok(Vec::from_base32(&canon).unwrap().into()),
-            Err(error) => Err(StdError::generic_err(format!(
-                "addr_canonicalize errored: {}",
-                error
-            ))),
-        }
-    }
-
-    fn addr_humanize(&self, canonical: &CanonicalAddr) -> StdResult<Addr> {
-        match bech32::encode(
+impl BackendApi for MockApi {
+    fn human_address(&self, canonical: &[u8]) -> BackendResult<String> {
+        let gas_info = GasInfo::with_cost(GAS_COST_HUMANIZE);
+        let result = match bech32::encode(
             "orai",
             canonical.to_vec().to_base32(),
             bech32::Variant::Bech32,
         ) {
-            Ok(human) => Ok(Addr::unchecked(human)),
-            Err(error) => Err(StdError::generic_err(format!(
-                "addr_humanize errored: {}",
-                error
-            ))),
-        }
+            Ok(human) => Ok(human),
+            Err(error) => Err(BackendError::Unknown {
+                msg: format!("addr_humanize errored: {}", error),
+            }),
+        };
+        (result, gas_info)
     }
 
-    fn secp256k1_verify(
-        &self,
-        _message_hash: &[u8],
-        _signature: &[u8],
-        _public_key: &[u8],
-    ) -> Result<bool, cosmwasm_std::VerificationError> {
-        todo!()
-    }
-
-    fn secp256k1_recover_pubkey(
-        &self,
-        _message_hash: &[u8],
-        _signature: &[u8],
-        _recovery_param: u8,
-    ) -> Result<Vec<u8>, cosmwasm_std::RecoverPubkeyError> {
-        todo!()
-    }
-
-    fn ed25519_verify(
-        &self,
-        _message: &[u8],
-        _signature: &[u8],
-        _public_key: &[u8],
-    ) -> Result<bool, cosmwasm_std::VerificationError> {
-        todo!()
-    }
-
-    fn ed25519_batch_verify(
-        &self,
-        _messages: &[&[u8]],
-        _signatures: &[&[u8]],
-        _public_keys: &[&[u8]],
-    ) -> Result<bool, cosmwasm_std::VerificationError> {
-        todo!()
-    }
-
-    fn debug(&self, message: &str) {
-        println!("{message}");
+    fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>> {
+        let gas_info = GasInfo::with_cost(GAS_COST_CANONICALIZE);
+        let result = match bech32::decode(human) {
+            Ok((_, canon, _)) => Ok(Vec::from_base32(&canon).unwrap().into()),
+            Err(error) => Err(BackendError::Unknown {
+                msg: format!("addr_canonicalize errored: {}", error),
+            }),
+        };
+        (result, gas_info)
     }
 }
 
-pub fn mock_dependencies() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
-    OwnedDeps {
-        storage: MockStorage::default(),
+pub fn mock_instance(
+    wasm: &[u8],
+    options: MockInstanceOptions,
+) -> Instance<MockApi, MockStorage, MockQuerier> {
+    let backend = Backend {
         api: MockApi::default(),
-        querier: MockQuerier::default(),
-        custom_query_type: PhantomData,
-    }
+        storage: MockStorage::default(),
+        querier: MockQuerier::new(&options.balances),
+    };
+    let memory_limit = options.memory_limit;
+    let options = InstanceOptions {
+        gas_limit: options.gas_limit,
+        print_debug: options.print_debug,
+    };
+    Instance::from_code(wasm, backend, options, memory_limit).unwrap()
 }
 
-pub fn load_state(storage: &mut dyn Storage, state: &[u8]) {
+pub fn load_state(storage: &mut impl Storage, state: &[u8]) {
     // first 4 bytes is for uint32 be
     // 1 byte key length + key
     // 2 bytes value length + value
@@ -126,6 +86,6 @@ pub fn load_state(storage: &mut dyn Storage, state: &[u8]) {
         ind += 2;
         let value = &state[ind..ind + value_length as usize];
         ind += value_length as usize;
-        storage.set(key, value);
+        storage.set(key, value).0.unwrap();
     }
 }
