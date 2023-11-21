@@ -3,19 +3,177 @@ use cosmwasm_schema::{
     schemars::JsonSchema,
     serde::{de::DeserializeOwned, Serialize},
 };
-use cosmwasm_std::{from_binary, Addr, Coin, ContractResult, Response};
+use cosmwasm_std::{
+    from_binary, Addr, Coin, ContractResult, Order, Record, Response, Storage as StdStorage,
+};
 use cosmwasm_vm::{
     testing::{
         execute, instantiate, migrate, mock_env, mock_info, query, sudo, MockInstanceOptions,
-        MockQuerier, MockStorage,
+        MockQuerier,
     },
     Backend, BackendApi, BackendError, BackendResult, GasInfo, Instance, InstanceOptions, Storage,
     VmResult,
+};
+use std::ops::{Bound, RangeBounds};
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter,
 };
 
 const GAS_COST_HUMANIZE: u64 = 44; // TODO: these seem very low
 const GAS_COST_CANONICALIZE: u64 = 55;
 pub const GAS_PER_US: u64 = 1_000_000;
+const GAS_COST_LAST_ITERATION: u64 = 37;
+const GAS_COST_RANGE: u64 = 11;
+
+#[derive(Default, Debug, Clone)]
+struct Iter {
+    data: Vec<Record>,
+    position: usize,
+}
+
+impl Iterator for Iter {
+    type Item = Record;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data.len() > self.position {
+            let item = self.data[self.position].clone();
+            self.position += 1;
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct MockStorage {
+    data: BTreeMap<Vec<u8>, Vec<u8>>,
+    iterators: HashMap<u32, Iter>,
+}
+
+impl MockStorage {
+    pub fn new() -> Self {
+        MockStorage::default()
+    }
+
+    pub fn wrap(&mut self) -> StorageWrapper {
+        StorageWrapper { store: self }
+    }
+
+    pub fn all(&mut self, iterator_id: u32) -> BackendResult<Vec<Record>> {
+        let mut out: Vec<Record> = Vec::new();
+        let mut total = GasInfo::free();
+        loop {
+            let (result, info) = self.next(iterator_id);
+            total += info;
+            match result {
+                Err(err) => return (Err(err), total),
+                Ok(ok) => {
+                    if let Some(v) = ok {
+                        out.push(v);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        (Ok(out), total)
+    }
+}
+
+impl Storage for MockStorage {
+    fn get(&self, key: &[u8]) -> BackendResult<Option<Vec<u8>>> {
+        let gas_info = GasInfo::with_externally_used(key.len() as u64);
+        (Ok(self.data.get(key).cloned()), gas_info)
+    }
+
+    fn scan(
+        &mut self,
+        start: Option<&[u8]>,
+        end: Option<&[u8]>,
+        order: Order,
+    ) -> BackendResult<u32> {
+        let gas_info = GasInfo::with_externally_used(GAS_COST_RANGE);
+        let bounds = range_bounds(start, end);
+
+        let values: Vec<Record> = match (bounds.start_bound(), bounds.end_bound()) {
+            // BTreeMap.range panics if range is start > end.
+            // However, this cases represent just empty range and we treat it as such.
+            (Bound::Included(start), Bound::Excluded(end)) if start > end => Vec::new(),
+            _ => match order {
+                Order::Ascending => self.data.range(bounds).map(clone_item).collect(),
+                Order::Descending => self.data.range(bounds).rev().map(clone_item).collect(),
+            },
+        };
+
+        let last_id: u32 = self
+            .iterators
+            .len()
+            .try_into()
+            .expect("Found more iterator IDs than supported");
+        let new_id = last_id + 1;
+        let iter = Iter {
+            data: values,
+            position: 0,
+        };
+        self.iterators.insert(new_id, iter);
+
+        (Ok(new_id), gas_info)
+    }
+
+    fn next(&mut self, iterator_id: u32) -> BackendResult<Option<Record>> {
+        let iterator = match self.iterators.get_mut(&iterator_id) {
+            Some(i) => i,
+            None => {
+                return (
+                    Err(BackendError::iterator_does_not_exist(iterator_id)),
+                    GasInfo::free(),
+                )
+            }
+        };
+
+        let (value, gas_info): (Option<Record>, GasInfo) =
+            if iterator.data.len() > iterator.position {
+                let item = iterator.data[iterator.position].clone();
+                iterator.position += 1;
+                let gas_cost = (item.0.len() + item.1.len()) as u64;
+                (Some(item), GasInfo::with_cost(gas_cost))
+            } else {
+                (None, GasInfo::with_externally_used(GAS_COST_LAST_ITERATION))
+            };
+
+        (Ok(value), gas_info)
+    }
+
+    fn set(&mut self, key: &[u8], value: &[u8]) -> BackendResult<()> {
+        self.data.insert(key.to_vec(), value.to_vec());
+        let gas_info = GasInfo::with_externally_used((key.len() + value.len()) as u64);
+        (Ok(()), gas_info)
+    }
+
+    fn remove(&mut self, key: &[u8]) -> BackendResult<()> {
+        self.data.remove(key);
+        let gas_info = GasInfo::with_externally_used(key.len() as u64);
+        (Ok(()), gas_info)
+    }
+}
+
+fn range_bounds(start: Option<&[u8]>, end: Option<&[u8]>) -> impl RangeBounds<Vec<u8>> {
+    (
+        start.map_or(Bound::Unbounded, |x| Bound::Included(x.to_vec())),
+        end.map_or(Bound::Unbounded, |x| Bound::Excluded(x.to_vec())),
+    )
+}
+
+/// The BTreeMap specific key-value pair reference type, as returned by BTreeMap<Vec<u8>, Vec<u8>>::range.
+/// This is internal as it can change any time if the map implementation is swapped out.
+type BTreeMapRecordRef<'a> = (&'a Vec<u8>, &'a Vec<u8>);
+
+fn clone_item(item_ref: BTreeMapRecordRef) -> Record {
+    let (key, value) = item_ref;
+    (key.clone(), value.clone())
+}
 
 // MockPrecompiles zero pads all human addresses to make them fit the canonical_length
 // it trims off zeros for the reverse operation.
@@ -187,5 +345,62 @@ impl MockContract {
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
+    }
+}
+
+pub struct StorageWrapper<'a> {
+    store: &'a mut MockStorage,
+}
+
+impl StdStorage for StorageWrapper<'_> {
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        // self.instance
+        //     .with_storage(|store| Ok(store.get(key).0?))
+        //     .unwrap()
+        self.store.get(key).0.unwrap()
+    }
+
+    fn set(&mut self, key: &[u8], value: &[u8]) {
+        if value.is_empty() {
+            panic!("TL;DR: Value must not be empty in Storage::set but in most cases you can use Storage::remove instead. Long story: Getting empty values from storage is not well supported at the moment. Some of our internal interfaces cannot differentiate between a non-existent key and an empty value. Right now, you cannot rely on the behaviour of empty values. To protect you from trouble later on, we stop here. Sorry for the inconvenience! We highly welcome you to contribute to CosmWasm, making this more solid one way or the other.");
+        }
+
+        // self.instance
+        //     .with_storage(|store| Ok(store.set(key, value).0?))
+        //     .unwrap();
+
+        self.store.set(key, value).0.unwrap()
+    }
+
+    fn remove(&mut self, key: &[u8]) {
+        // self.instance
+        //     .with_storage(|store| Ok(store.remove(key).0?))
+        //     .unwrap();
+
+        self.store.remove(key).0.unwrap()
+    }
+
+    fn range<'a>(
+        &'a self,
+        start: Option<&[u8]>,
+        end: Option<&[u8]>,
+        order: Order,
+    ) -> Box<dyn Iterator<Item = Record> + 'a> {
+        let bounds = range_bounds(start, end);
+
+        // BTreeMap.range panics if range is start > end.
+        // However, this cases represent just empty range and we treat it as such.
+        match (bounds.start_bound(), bounds.end_bound()) {
+            (Bound::Included(start), Bound::Excluded(end)) if start > end => {
+                return Box::new(iter::empty());
+            }
+            _ => {}
+        }
+
+        let iter = self.store.data.range(bounds);
+        match order {
+            Order::Ascending => Box::new(iter.map(clone_item)),
+            Order::Descending => Box::new(iter.rev().map(clone_item)),
+        }
     }
 }
