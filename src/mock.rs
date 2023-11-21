@@ -354,9 +354,6 @@ pub struct StorageWrapper<'a> {
 
 impl StdStorage for StorageWrapper<'_> {
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        // self.instance
-        //     .with_storage(|store| Ok(store.get(key).0?))
-        //     .unwrap()
         self.store.get(key).0.unwrap()
     }
 
@@ -365,18 +362,10 @@ impl StdStorage for StorageWrapper<'_> {
             panic!("TL;DR: Value must not be empty in Storage::set but in most cases you can use Storage::remove instead. Long story: Getting empty values from storage is not well supported at the moment. Some of our internal interfaces cannot differentiate between a non-existent key and an empty value. Right now, you cannot rely on the behaviour of empty values. To protect you from trouble later on, we stop here. Sorry for the inconvenience! We highly welcome you to contribute to CosmWasm, making this more solid one way or the other.");
         }
 
-        // self.instance
-        //     .with_storage(|store| Ok(store.set(key, value).0?))
-        //     .unwrap();
-
         self.store.set(key, value).0.unwrap()
     }
 
     fn remove(&mut self, key: &[u8]) {
-        // self.instance
-        //     .with_storage(|store| Ok(store.remove(key).0?))
-        //     .unwrap();
-
         self.store.remove(key).0.unwrap()
     }
 
