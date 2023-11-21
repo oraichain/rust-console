@@ -64,7 +64,7 @@ impl BackendApi for MockApi {
 }
 
 pub struct MockContract {
-    instance: Instance<MockApi, MockStorage, MockQuerier>,
+    pub instance: Instance<MockApi, MockStorage, MockQuerier>,
     address: Addr,
 }
 
