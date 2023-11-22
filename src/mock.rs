@@ -4,7 +4,8 @@ use cosmwasm_schema::{
     serde::{de::DeserializeOwned, Serialize},
 };
 use cosmwasm_std::{
-    from_binary, Addr, Coin, ContractResult, Order, Record, Response, Storage as StdStorage,
+    from_binary, Addr, Api, CanonicalAddr, Coin, ContractResult, Order, Record, RecoverPubkeyError,
+    Response, StdError, StdResult, Storage as StdStorage, VerificationError,
 };
 use cosmwasm_vm::{
     testing::{
@@ -30,20 +31,6 @@ const GAS_COST_RANGE: u64 = 11;
 struct Iter {
     data: Vec<Record>,
     position: usize,
-}
-
-impl Iterator for Iter {
-    type Item = Record;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.data.len() > self.position {
-            let item = self.data[self.position].clone();
-            self.position += 1;
-            Some(item)
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Default, Debug)]
@@ -221,8 +208,76 @@ impl BackendApi for MockApi {
     }
 }
 
+impl Api for MockApi {
+    fn addr_validate(&self, input: &str) -> StdResult<Addr> {
+        let canonical = self.addr_canonicalize(input)?;
+        let normalized = self.addr_humanize(&canonical)?;
+        if input != normalized {
+            return Err(StdError::generic_err(
+                "Invalid input: address not normalized",
+            ));
+        }
+
+        Ok(Addr::unchecked(input))
+    }
+
+    fn addr_canonicalize(&self, human: &str) -> StdResult<CanonicalAddr> {
+        match self.canonical_address(human).0 {
+            Ok(addr) => Ok(addr.into()),
+            Err(error) => Err(StdError::generic_err(error.to_string())),
+        }
+    }
+
+    fn addr_humanize(&self, canonical: &CanonicalAddr) -> StdResult<Addr> {
+        match self.human_address(canonical).0 {
+            Ok(addr) => Ok(Addr::unchecked(addr)),
+            Err(error) => Err(StdError::generic_err(error.to_string())),
+        }
+    }
+
+    fn secp256k1_verify(
+        &self,
+        message_hash: &[u8],
+        signature: &[u8],
+        public_key: &[u8],
+    ) -> Result<bool, VerificationError> {
+        todo!()
+    }
+
+    fn secp256k1_recover_pubkey(
+        &self,
+        message_hash: &[u8],
+        signature: &[u8],
+        recovery_param: u8,
+    ) -> Result<Vec<u8>, RecoverPubkeyError> {
+        todo!()
+    }
+
+    fn ed25519_verify(
+        &self,
+        message: &[u8],
+        signature: &[u8],
+        public_key: &[u8],
+    ) -> Result<bool, VerificationError> {
+        todo!()
+    }
+
+    fn ed25519_batch_verify(
+        &self,
+        messages: &[&[u8]],
+        signatures: &[&[u8]],
+        public_keys: &[&[u8]],
+    ) -> Result<bool, VerificationError> {
+        todo!()
+    }
+
+    fn debug(&self, message: &str) {
+        println!("{message}");
+    }
+}
+
 pub struct MockContract {
-    pub instance: Instance<MockApi, MockStorage, MockQuerier>,
+    instance: Instance<MockApi, MockStorage, MockQuerier>,
     address: Addr,
 }
 
@@ -242,6 +297,21 @@ impl MockContract {
             address,
             instance: Instance::from_code(wasm, backend, options, memory_limit).unwrap(),
         }
+    }
+
+    pub fn address(&self) -> &str {
+        self.address.as_str()
+    }
+
+    pub fn api(&self) -> MockApi {
+        self.instance.api().clone()
+    }
+
+    pub fn with_storage<F: FnOnce(&mut dyn StdStorage) -> VmResult<T>, T>(
+        &mut self,
+        func: F,
+    ) -> VmResult<T> {
+        self.instance.with_storage(|store| func(&mut store.wrap()))
     }
 
     pub fn load_state(&mut self, state: &[u8]) -> VmResult<()> {
