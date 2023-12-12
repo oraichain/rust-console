@@ -4,13 +4,17 @@ use cosmwasm_schema::{
     serde::{de::DeserializeOwned, Serialize},
 };
 use cosmwasm_std::{
-    from_binary, Addr, Api, CanonicalAddr, Coin, ContractResult, Order, Record, RecoverPubkeyError,
-    Response, StdError, StdResult, Storage as StdStorage, VerificationError,
+    from_binary, Addr, Api, CanonicalAddr, Coin, ContractResult, Ibc3ChannelOpenResponse,
+    IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcPacketAckMsg,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Order, Record,
+    RecoverPubkeyError, Reply, Response, StdError, StdResult, Storage as StdStorage,
+    VerificationError,
 };
 use cosmwasm_vm::{
     testing::{
-        execute, instantiate, migrate, mock_env, mock_info, query, sudo, MockInstanceOptions,
-        MockQuerier,
+        execute, ibc_channel_close, ibc_channel_connect, ibc_channel_open, ibc_packet_ack,
+        ibc_packet_receive, ibc_packet_timeout, instantiate, migrate, mock_env, mock_info, query,
+        reply, sudo, MockInstanceOptions, MockQuerier,
     },
     Backend, BackendApi, BackendError, BackendResult, GasInfo, Instance, InstanceOptions, Storage,
     VmResult,
@@ -241,7 +245,11 @@ impl Api for MockApi {
         signature: &[u8],
         public_key: &[u8],
     ) -> Result<bool, VerificationError> {
-        todo!()
+        Ok(cosmwasm_crypto::secp256k1_verify(
+            message_hash,
+            signature,
+            public_key,
+        )?)
     }
 
     fn secp256k1_recover_pubkey(
@@ -250,7 +258,11 @@ impl Api for MockApi {
         signature: &[u8],
         recovery_param: u8,
     ) -> Result<Vec<u8>, RecoverPubkeyError> {
-        todo!()
+        Ok(cosmwasm_crypto::secp256k1_recover_pubkey(
+            message_hash,
+            signature,
+            recovery_param,
+        )?)
     }
 
     fn ed25519_verify(
@@ -259,7 +271,9 @@ impl Api for MockApi {
         signature: &[u8],
         public_key: &[u8],
     ) -> Result<bool, VerificationError> {
-        todo!()
+        Ok(cosmwasm_crypto::ed25519_verify(
+            message, signature, public_key,
+        )?)
     }
 
     fn ed25519_batch_verify(
@@ -268,7 +282,11 @@ impl Api for MockApi {
         signatures: &[&[u8]],
         public_keys: &[&[u8]],
     ) -> Result<bool, VerificationError> {
-        todo!()
+        Ok(cosmwasm_crypto::ed25519_batch_verify(
+            messages,
+            signatures,
+            public_keys,
+        )?)
     }
 
     fn debug(&self, message: &str) {
@@ -405,11 +423,113 @@ impl MockContract {
         ContractResult::Ok((ret, gas_used))
     }
 
+    pub fn reply(&mut self, msg: Reply) -> ContractResult<(Response, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match reply(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
     pub fn sudo<M: Serialize + JsonSchema>(&mut self, msg: M) -> ContractResult<(Response, u64)> {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
         let ret = match sudo(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_channel_open(
+        &mut self,
+        msg: IbcChannelOpenMsg,
+    ) -> ContractResult<(Option<Ibc3ChannelOpenResponse>, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_channel_open(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_channel_connect(
+        &mut self,
+        msg: IbcChannelConnectMsg,
+    ) -> ContractResult<(IbcBasicResponse, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_channel_connect(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_channel_close(
+        &mut self,
+        msg: IbcChannelCloseMsg,
+    ) -> ContractResult<(IbcBasicResponse, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_channel_close(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_packet_receive(
+        &mut self,
+        msg: IbcPacketReceiveMsg,
+    ) -> ContractResult<(IbcReceiveResponse, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_packet_receive(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_packet_ack(
+        &mut self,
+        msg: IbcPacketAckMsg,
+    ) -> ContractResult<(IbcBasicResponse, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_packet_ack(&mut self.instance, env, msg) {
+            ContractResult::Ok(ret) => ret,
+            ContractResult::Err(error) => return ContractResult::Err(error),
+        };
+        let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
+        ContractResult::Ok((ret, gas_used))
+    }
+
+    pub fn ibc_packet_timeout(
+        &mut self,
+        msg: IbcPacketTimeoutMsg,
+    ) -> ContractResult<(IbcBasicResponse, u64)> {
+        let mut env = mock_env();
+        env.contract.address = self.address.clone();
+        let gas_before = self.instance.get_gas_left();
+        let ret = match ibc_packet_timeout(&mut self.instance, env, msg) {
             ContractResult::Ok(ret) => ret,
             ContractResult::Err(error) => return ContractResult::Err(error),
         };
