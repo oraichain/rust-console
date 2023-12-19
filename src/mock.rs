@@ -214,15 +214,10 @@ impl BackendApi for MockApi {
 
 impl Api for MockApi {
     fn addr_validate(&self, input: &str) -> StdResult<Addr> {
-        let canonical = self.addr_canonicalize(input)?;
-        let normalized = self.addr_humanize(&canonical)?;
-        if input != normalized {
-            return Err(StdError::generic_err(
-                "Invalid input: address not normalized",
-            ));
+        match bech32::decode(input) {
+            Ok(_) => Ok(Addr::unchecked(input)),
+            Err(err) => Err(StdError::generic_err(err.to_string())),
         }
-
-        Ok(Addr::unchecked(input))
     }
 
     fn addr_canonicalize(&self, human: &str) -> StdResult<CanonicalAddr> {
