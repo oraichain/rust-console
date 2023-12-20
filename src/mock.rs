@@ -1,4 +1,4 @@
-use bech32::{FromBase32, ToBase32};
+use bech32::{decode, encode, FromBase32, ToBase32, Variant};
 use cosmwasm_schema::{
     schemars::JsonSchema,
     serde::{de::DeserializeOwned, Serialize},
@@ -11,13 +11,12 @@ use cosmwasm_std::{
     VerificationError,
 };
 use cosmwasm_vm::{
-    testing::{
-        execute, ibc_channel_close, ibc_channel_connect, ibc_channel_open, ibc_packet_ack,
-        ibc_packet_receive, ibc_packet_timeout, instantiate, migrate, mock_env, mock_info, query,
-        reply, sudo, MockInstanceOptions, MockQuerier,
-    },
-    Backend, BackendApi, BackendError, BackendResult, GasInfo, Instance, InstanceOptions, Storage,
-    VmResult,
+    call_execute, call_ibc_channel_close, call_ibc_channel_connect, call_ibc_channel_open,
+    call_ibc_packet_ack, call_ibc_packet_receive, call_ibc_packet_timeout, call_instantiate,
+    call_migrate, call_query, call_reply, call_sudo,
+    testing::{mock_env, mock_info, MockInstanceOptions, MockQuerier},
+    to_vec, Backend, BackendApi, BackendError, BackendResult, GasInfo, Instance, InstanceOptions,
+    Storage, VmResult,
 };
 use std::ops::{Bound, RangeBounds};
 use std::{
@@ -25,11 +24,32 @@ use std::{
     iter,
 };
 
+const BECH32_PREFIX: &str = "orai";
 const GAS_COST_HUMANIZE: u64 = 44; // TODO: these seem very low
 const GAS_COST_CANONICALIZE: u64 = 55;
 pub const GAS_PER_US: u64 = 1_000_000;
 const GAS_COST_LAST_ITERATION: u64 = 37;
 const GAS_COST_RANGE: u64 = 11;
+
+/// The equivalent of the `?` operator, but for a [`BackendResult`]
+macro_rules! try_br {
+    ($res: expr $(,)?) => {
+        let (result, gas) = $res;
+
+        match result {
+            Ok(v) => v,
+            Err(e) => return (Err(e), gas),
+        }
+    };
+}
+
+/// Does basic validation of the number of bytes in a canonical address
+fn validate_length(bytes: &[u8]) -> Result<(), BackendError> {
+    match bytes.len() {
+        1..=255 => Ok(()),
+        _ => Err(BackendError::user_err("Invalid canonical address length")),
+    }
+}
 
 #[derive(Default, Debug, Clone)]
 struct Iter {
@@ -166,58 +186,117 @@ fn clone_item(item_ref: BTreeMapRecordRef) -> Record {
     (key.clone(), value.clone())
 }
 
-// MockPrecompiles zero pads all human addresses to make them fit the canonical_length
-// it trims off zeros for the reverse operation.
-// not really smart, but allows us to see a difference (and consistent length for canonical adddresses)
 #[derive(Copy, Clone)]
-pub struct MockApi {
-    /// Length of canonical addresses created with this API. Contracts should not make any assumptions
-    /// what this value is.
-    pub canonical_length: usize,
+pub struct MockApi(MockApiImpl);
+
+#[derive(Copy, Clone)]
+enum MockApiImpl {
+    /// With this variant, all calls to the API fail with BackendError::Unknown
+    /// containing the given message
+    Error(&'static str),
+    /// This variant implements Bech32 addresses.
+    Bech32 {
+        /// Prefix used for creating addresses in Bech32 encoding.
+        bech32_prefix: &'static str,
+    },
+}
+
+impl MockApi {
+    pub fn new_failing(backend_error: &'static str) -> Self {
+        Self(MockApiImpl::Error(backend_error))
+    }
+
+    /// Returns [MockApi] with Bech32 prefix set to provided value.
+    ///
+    /// Bech32 prefix must not be empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use cosmwasm_std::Addr;
+    /// # use cosmwasm_std::testing::MockApi;
+    /// #
+    /// let mock_api = MockApi::default().with_prefix("juno");
+    /// let addr = mock_api.addr_make("creator");
+    ///
+    /// assert_eq!(addr.as_str(), "juno1h34lmpywh4upnjdg90cjf4j70aee6z8qqfspugamjp42e4q28kqsksmtyp");
+    /// ```
+    pub fn with_prefix(self, prefix: &'static str) -> Self {
+        Self(MockApiImpl::Bech32 {
+            bech32_prefix: prefix,
+        })
+    }
 }
 
 impl Default for MockApi {
     fn default() -> Self {
-        Self {
-            canonical_length: 20,
-        }
+        Self(MockApiImpl::Bech32 {
+            bech32_prefix: BECH32_PREFIX,
+        })
     }
 }
 
 impl BackendApi for MockApi {
-    fn human_address(&self, canonical: &[u8]) -> BackendResult<String> {
-        let gas_info = GasInfo::with_cost(GAS_COST_HUMANIZE);
-        let result = match bech32::encode(
-            "orai",
-            canonical.to_vec().to_base32(),
-            bech32::Variant::Bech32,
-        ) {
-            Ok(human) => Ok(human),
-            Err(error) => Err(BackendError::Unknown {
-                msg: format!("addr_humanize errored: {}", error),
-            }),
+    fn canonical_address(&self, input: &str) -> BackendResult<Vec<u8>> {
+        let gas_info = GasInfo::with_cost(GAS_COST_CANONICALIZE);
+
+        // handle error case
+        let bech32_prefix = match self.0 {
+            MockApiImpl::Error(e) => return (Err(BackendError::unknown(e)), gas_info),
+            MockApiImpl::Bech32 { bech32_prefix } => bech32_prefix,
         };
-        (result, gas_info)
+
+        match decode(input) {
+            Ok((prefix, _, _)) if prefix != bech32_prefix => {
+                (Err(BackendError::user_err("Wrong bech32 prefix")), gas_info)
+            }
+            Ok((_, _, Variant::Bech32m)) => (
+                Err(BackendError::user_err("Wrong bech32 variant")),
+                gas_info,
+            ),
+            Err(_) => (
+                Err(BackendError::user_err("Error decoding bech32")),
+                gas_info,
+            ),
+            Ok((_, decoded, Variant::Bech32)) => match Vec::<u8>::from_base32(&decoded) {
+                Ok(bytes) => {
+                    try_br!((validate_length(&bytes), gas_info));
+                    (Ok(bytes), gas_info)
+                }
+                Err(_) => (Err(BackendError::user_err("Invalid bech32 data")), gas_info),
+            },
+        }
     }
 
-    fn canonical_address(&self, human: &str) -> BackendResult<Vec<u8>> {
-        let gas_info = GasInfo::with_cost(GAS_COST_CANONICALIZE);
-        let result = match bech32::decode(human) {
-            Ok((_, canon, _)) => Ok(Vec::from_base32(&canon).unwrap().into()),
-            Err(error) => Err(BackendError::Unknown {
-                msg: format!("addr_canonicalize errored: {}", error),
-            }),
+    fn human_address(&self, canonical: &[u8]) -> BackendResult<String> {
+        let gas_info = GasInfo::with_cost(GAS_COST_HUMANIZE);
+
+        // handle error case
+        let bech32_prefix = match self.0 {
+            MockApiImpl::Error(e) => return (Err(BackendError::unknown(e)), gas_info),
+            MockApiImpl::Bech32 { bech32_prefix } => bech32_prefix,
         };
+
+        try_br!((validate_length(canonical), gas_info));
+
+        let result = encode(bech32_prefix, canonical.to_base32(), Variant::Bech32)
+            .map_err(|_| BackendError::user_err("Invalid bech32 prefix"));
+
         (result, gas_info)
     }
 }
 
 impl Api for MockApi {
     fn addr_validate(&self, input: &str) -> StdResult<Addr> {
-        match bech32::decode(input) {
-            Ok(_) => Ok(Addr::unchecked(input)),
-            Err(err) => Err(StdError::generic_err(err.to_string())),
+        let canonical = self.addr_canonicalize(input)?;
+        let normalized = self.addr_humanize(&canonical)?;
+        if input != normalized {
+            return Err(StdError::generic_err(
+                "Invalid input: address not normalized",
+            ));
         }
+
+        Ok(Addr::unchecked(input))
     }
 
     fn addr_canonicalize(&self, human: &str) -> StdResult<CanonicalAddr> {
@@ -356,9 +435,12 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match migrate(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let serialized_msg =
+            to_vec(&msg).expect("Testing error: Could not seralize request message");
+        let ret = match call_migrate(&mut self.instance, &env, &serialized_msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -374,9 +456,16 @@ impl MockContract {
         env.contract.address = self.address.clone();
         let info = mock_info(sender, funds);
         let gas_before = self.instance.get_gas_left();
-        let ret = match instantiate(&mut self.instance, env, info, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+
+        let serialized_msg =
+            to_vec(&msg).expect("Testing error: Could not seralize request message");
+
+        let ret = match call_instantiate(&mut self.instance, &env, &info, &serialized_msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => {
+                return ContractResult::Err(error.to_string());
+            }
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -392,9 +481,12 @@ impl MockContract {
         env.contract.address = self.address.clone();
         let info = mock_info(sender, funds);
         let gas_before = self.instance.get_gas_left();
-        let ret = match execute(&mut self.instance, env, info, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let serialized_msg =
+            to_vec(&msg).expect("Testing error: Could not seralize request message");
+        let ret = match call_execute(&mut self.instance, &env, &info, &serialized_msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -407,12 +499,15 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret: T = match query(&mut self.instance, env, msg) {
-            ContractResult::Ok(binary) => match from_binary(&binary) {
+        let serialized_msg =
+            to_vec(&msg).expect("Testing error: Could not seralize request message");
+        let ret: T = match call_query(&mut self.instance, &env, &serialized_msg) {
+            Ok(ContractResult::Ok(binary)) => match from_binary(&binary) {
                 Ok(ret) => ret,
                 Err(error) => return ContractResult::Err(error.to_string()),
             },
-            ContractResult::Err(error) => return ContractResult::Err(error),
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -422,9 +517,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match reply(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_reply(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -434,9 +530,12 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match sudo(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let serialized_msg =
+            to_vec(&msg).expect("Testing error: Could not seralize request message");
+        let ret = match call_sudo(&mut self.instance, &env, &serialized_msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -449,9 +548,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_channel_open(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_channel_open(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -464,9 +564,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_channel_connect(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_channel_connect(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -479,9 +580,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_channel_close(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_channel_close(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -494,9 +596,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_packet_receive(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_packet_receive(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -509,9 +612,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_packet_ack(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_packet_ack(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
@@ -524,9 +628,10 @@ impl MockContract {
         let mut env = mock_env();
         env.contract.address = self.address.clone();
         let gas_before = self.instance.get_gas_left();
-        let ret = match ibc_packet_timeout(&mut self.instance, env, msg) {
-            ContractResult::Ok(ret) => ret,
-            ContractResult::Err(error) => return ContractResult::Err(error),
+        let ret = match call_ibc_packet_timeout(&mut self.instance, &env, &msg) {
+            Ok(ContractResult::Ok(ret)) => ret,
+            Ok(ContractResult::Err(error)) => return ContractResult::Err(error),
+            Err(error) => return ContractResult::Err(error.to_string()),
         };
         let gas_used = (gas_before - self.instance.get_gas_left()) / GAS_PER_US;
         ContractResult::Ok((ret, gas_used))
