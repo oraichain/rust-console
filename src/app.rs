@@ -129,7 +129,14 @@ impl MockApp {
         contract_addr: Addr,
         msg: &U,
     ) -> StdResult<T> {
-        self.app.wrap().query_wasm_smart(contract_addr, msg)
+        if std::mem::size_of::<U>() == std::mem::size_of::<TokenFactoryQuery>() {
+            let value = msg.clone();
+            let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryQuery) };
+            std::mem::forget(value);
+            self.app.wrap().query(dest.into())
+        } else {
+            self.app.wrap().query_wasm_smart(contract_addr, msg)
+        }
     }
 
     pub fn query_balance(&self, account_addr: Addr, denom: String) -> StdResult<Uint128> {
