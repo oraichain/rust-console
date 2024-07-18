@@ -6,6 +6,7 @@ use cosmwasm_std::{
     QuerierWrapper, QueryRequest, StdResult, Uint128,
 };
 use cw20::TokenInfoResponse;
+use std::any::TypeId;
 use std::collections::HashMap;
 use token_bindings::{TokenFactoryMsg, TokenFactoryQuery};
 use token_bindings_test::TokenFactoryModule;
@@ -113,7 +114,7 @@ impl MockApp {
         msg: &T,
         send_funds: &[Coin],
     ) -> Result<AppResponse, String> {
-        let response = if std::mem::size_of::<T>() == std::mem::size_of::<TokenFactoryMsg>() {
+        let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
             std::mem::forget(value);
@@ -136,7 +137,7 @@ impl MockApp {
         contract_addr: Addr,
         msg: &U,
     ) -> StdResult<T> {
-        if std::mem::size_of::<U>() == std::mem::size_of::<TokenFactoryQuery>() {
+        if TypeId::of::<U>() == TypeId::of::<TokenFactoryQuery>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const U as *const TokenFactoryQuery) };
             std::mem::forget(value);
