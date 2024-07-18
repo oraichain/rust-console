@@ -275,6 +275,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmwasm-storage"
+version = "1.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0a2997bbb57c24c7ca9f745799c8839c08b7cde0be3f6c43127d25a7f03f2fe"
+dependencies = [
+ "cosmwasm-std",
+ "serde",
+]
+
+[[package]]
 name = "cosmwasm-testing-util"
 version = "0.1.0"
 dependencies = [
@@ -283,10 +293,12 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-vm",
+ "cw-multi-test",
  "cw20",
  "cw20-base",
  "token-bindings",
  "token-bindings-test",
+ "tokenfactory",
 ]
 
 [[package]]
@@ -1806,7 +1818,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "token-bindings"
 version = "0.11.0"
-source = "git+https://github.com/oraichain/token-bindings.git#e85d7348b07c3d0403c60435c0a7d291af81f987"
+source = "git+https://github.com/oraichain/token-bindings.git?rev=e85d734#e85d7348b07c3d0403c60435c0a7d291af81f987"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1817,13 +1829,29 @@ dependencies = [
 [[package]]
 name = "token-bindings-test"
 version = "0.11.0"
-source = "git+https://github.com/oraichain/token-bindings.git#e85d7348b07c3d0403c60435c0a7d291af81f987"
+source = "git+https://github.com/oraichain/token-bindings.git?rev=e85d734#e85d7348b07c3d0403c60435c0a7d291af81f987"
 dependencies = [
  "anyhow",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 0.16.0",
  "itertools 0.11.0",
+ "schemars",
+ "serde",
+ "thiserror",
+ "token-bindings",
+]
+
+[[package]]
+name = "tokenfactory"
+version = "0.11.0"
+source = "git+https://github.com/oraichain/token-bindings.git?rev=e85d734#e85d7348b07c3d0403c60435c0a7d291af81f987"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.16.0",
+ "cw2",
  "schemars",
  "serde",
  "thiserror",

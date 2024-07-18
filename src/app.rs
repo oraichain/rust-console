@@ -1,7 +1,6 @@
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
-use cosmwasm_std::{testing::mock_env, Env, Timestamp};
 use cosmwasm_std::{
     Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Empty, IbcMsg, IbcQuery,
     QuerierWrapper, QueryRequest, StdResult, Uint128,
@@ -15,11 +14,6 @@ use cw_multi_test::{
     next_block, App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper,
     DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
-
-use crate::checkpoint::{BitcoinTx, Output};
-use crate::msg::{self};
-
-use crate::{error::ContractResult, threshold_sig::Signature};
 
 pub type AppWrapped = App<
     BankKeeper,
@@ -37,6 +31,7 @@ pub struct MockApp {
     app: AppWrapped,
     token_map: HashMap<String, Addr>, // map token name to address
     token_id: u64,
+    tokenfactory_id: u64,
 }
 
 #[allow(dead_code)]
@@ -64,10 +59,17 @@ impl MockApp {
             cw20_base::contract::query,
         )));
 
+        let tokenfactory_id = app.store_code(Box::new(ContractWrapper::new(
+            tokenfactory::contract::execute,
+            tokenfactory::contract::instantiate,
+            tokenfactory::contract::query,
+        )));
+
         Self {
             app,
             token_id,
             token_map: HashMap::new(),
+            tokenfactory_id,
         }
     }
 
@@ -326,6 +328,18 @@ impl MockApp {
             },
             &[],
         )
+    }
+
+    /// external method
+    pub fn create_tokenfactory(&mut self, sender: Addr) -> Result<Addr, String> {
+        let addr = self.instantiate(
+            self.tokenfactory_id,
+            sender,
+            &tokenfactory::msg::InstantiateMsg {},
+            &[],
+            "tokenfactory",
+        )?;
+        Ok(addr)
     }
 
     pub fn assert_fail(&self, res: Result<AppResponse, String>) {
