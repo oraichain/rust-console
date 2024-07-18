@@ -230,11 +230,7 @@ impl MockApp {
         addr
     }
 
-    pub fn set_balances_from(
-        &mut self,
-        sender: Addr,
-        balances: &[(&String, &[(&String, &Uint128)])],
-    ) {
+    pub fn set_balances_from(&mut self, sender: Addr, balances: &[(&str, &[(&str, &Uint128)])]) {
         for (denom, balances) in balances.iter() {
             // send for each recipient
             for (recipient, &amount) in balances.iter() {
@@ -293,7 +289,7 @@ impl MockApp {
         Ok(contract_addrs)
     }
 
-    pub fn set_balances(&mut self, owner: &str, balances: &[(&String, &[(&String, &Uint128)])]) {
+    pub fn set_balances(&mut self, owner: &str, balances: &[(&str, &[(&str, &Uint128)])]) {
         self.set_balances_from(Addr::unchecked(owner), balances)
     }
 
