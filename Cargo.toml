@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cosmwasm-std = "=1.2"
-cosmwasm-schema = "=1.2"
-cosmwasm-crypto = "=1.2"
-cosmwasm-vm = { version = "=1.2", features = ["stargate"] }
+cosmwasm-std = "1.2.8"
+cosmwasm-schema = "1.2.8"
+cosmwasm-crypto = "1.2.8"
+cosmwasm-vm = { version = "1.2.8", features = ["stargate"] }
 bech32 = "0.9.1"
+
+token-bindings = { git = "https://github.com/oraichain/token-bindings.git" }
+token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git" }
