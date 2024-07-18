@@ -12,6 +12,6 @@ bech32 = "0.9.1"
 cw20 = { version = "1.0.1" }
 cw20-base = { version = "1.0.1" }
 cw-multi-test = "0.16.6"
-token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "e85d734" }
-token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "e85d734" }
-tokenfactory = { git = "https://github.com/oraichain/token-bindings.git", rev = "e85d734" }
+token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
+token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
+tokenfactory = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }

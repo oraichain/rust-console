@@ -28,7 +28,7 @@ pub type AppWrapped = App<
 pub type Code = Box<dyn Contract<TokenFactoryMsg, TokenFactoryQuery>>;
 
 pub struct MockApp {
-    app: AppWrapped,
+    pub app: AppWrapped,
     token_map: HashMap<String, Addr>, // map token name to address
     token_id: u64,
     tokenfactory_id: u64,
@@ -37,8 +37,15 @@ pub struct MockApp {
 #[allow(dead_code)]
 impl MockApp {
     pub fn new(init_balances: &[(&str, &[Coin])]) -> Self {
+        Self::new_with_creation_fee(init_balances, vec![])
+    }
+
+    pub fn new_with_creation_fee(
+        init_balances: &[(&str, &[Coin])],
+        denom_creation_fee: Vec<Coin>,
+    ) -> Self {
         let mut app = BasicAppBuilder::<TokenFactoryMsg, TokenFactoryQuery>::new_custom()
-            .with_custom(TokenFactoryModule {})
+            .with_custom(TokenFactoryModule::new(denom_creation_fee))
             .build(|router, _, storage| {
                 for (owner, init_funds) in init_balances.iter() {
                     router
@@ -124,16 +131,16 @@ impl MockApp {
         Ok(response)
     }
 
-    pub fn query<T: DeserializeOwned, U: Serialize>(
+    pub fn query<T: DeserializeOwned, U: Serialize + Clone + 'static>(
         &self,
         contract_addr: Addr,
         msg: &U,
     ) -> StdResult<T> {
         if std::mem::size_of::<U>() == std::mem::size_of::<TokenFactoryQuery>() {
             let value = msg.clone();
-            let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryQuery) };
+            let dest = unsafe { std::ptr::read(&value as *const U as *const TokenFactoryQuery) };
             std::mem::forget(value);
-            self.app.wrap().query(dest.into())
+            self.app.wrap().query(&dest.into())
         } else {
             self.app.wrap().query_wasm_smart(contract_addr, msg)
         }
@@ -238,13 +245,13 @@ impl MockApp {
     }
 
     pub fn set_balances_from(&mut self, sender: Addr, balances: &[(&str, &[(&str, &Uint128)])]) {
-        for (denom, balances) in balances.iter() {
+        for (denom, balance) in balances.iter() {
             // send for each recipient
-            for (recipient, &amount) in balances.iter() {
+            for (recipient, &amount) in balance.iter() {
                 self.app
                     .send_tokens(
                         sender.clone(),
-                        Addr::unchecked(recipient.as_str()),
+                        Addr::unchecked(*recipient),
                         &[Coin {
                             denom: denom.to_string(),
                             amount,
