@@ -2,6 +2,7 @@ pub mod app;
 pub mod mock;
 
 pub use app::*;
+pub use cw_multi_test::*;
 pub use mock::*;
 
 #[macro_export]

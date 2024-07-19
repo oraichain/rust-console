@@ -1,3 +1,4 @@
+use anyhow::Result as AnyResult;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
@@ -6,15 +7,14 @@ use cosmwasm_std::{
     QuerierWrapper, QueryRequest, StdError, StdResult, Uint128,
 };
 use cw20::TokenInfoResponse;
-use std::any::TypeId;
-use std::collections::HashMap;
-use token_bindings::{TokenFactoryMsg, TokenFactoryQuery};
-use token_bindings_test::TokenFactoryModule;
-
 use cw_multi_test::{
     next_block, App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper,
     DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
+use std::any::TypeId;
+use std::collections::HashMap;
+use token_bindings::{TokenFactoryMsg, TokenFactoryQuery};
+use token_bindings_test::TokenFactoryModule;
 
 pub type AppWrapped = App<
     BankKeeper,
@@ -113,18 +113,15 @@ impl MockApp {
         contract_addr: Addr,
         msg: &T,
         send_funds: &[Coin],
-    ) -> StdResult<AppResponse> {
+    ) -> AnyResult<AppResponse> {
         let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
             std::mem::forget(value);
-            self.app
-                .execute(contract_addr, dest.into())
-                .map_err(|err| StdError::generic_err(err.to_string()))?
+            self.app.execute(contract_addr, dest.into())?
         } else {
             self.app
-                .execute_contract(sender, contract_addr, msg, send_funds)
-                .map_err(|err| StdError::generic_err(err.to_string()))?
+                .execute_contract(sender, contract_addr, msg, send_funds)?
         };
 
         self.app.update_block(next_block);
@@ -269,7 +266,7 @@ impl MockApp {
         recipient: &str,
         cw20_addr: &str,
         amount: u128,
-    ) -> StdResult<AppResponse> {
+    ) -> AnyResult<AppResponse> {
         self.execute(
             Addr::unchecked(sender),
             Addr::unchecked(cw20_addr),
@@ -285,7 +282,7 @@ impl MockApp {
         &mut self,
         sender: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> StdResult<Vec<Addr>> {
+    ) -> AnyResult<Vec<Addr>> {
         let mut contract_addrs = vec![];
         for (token, balances) in balances {
             let contract_addr = match self.token_map.get(*token) {
@@ -313,7 +310,7 @@ impl MockApp {
         &mut self,
         owner: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> StdResult<Vec<Addr>> {
+    ) -> AnyResult<Vec<Addr>> {
         self.set_token_balances_from(owner, balances)
     }
 
@@ -323,7 +320,7 @@ impl MockApp {
         approver: &str,
         spender: &str,
         amount: u128,
-    ) -> StdResult<AppResponse> {
+    ) -> AnyResult<AppResponse> {
         let token_addr = match self.token_map.get(token) {
             Some(v) => v.to_owned(),
             None => Addr::unchecked(token),

@@ -288,6 +288,7 @@ dependencies = [
 name = "cosmwasm-testing-util"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bech32",
  "cosmwasm-crypto",
  "cosmwasm-schema",

@@ -11,6 +11,7 @@ cosmwasm-vm = { version = "1.2.8", features = ["stargate"] }
 bech32 = "0.9.1"
 cw20 = { version = "1.0.1" }
 cw20-base = { version = "1.0.1" }
+anyhow = "1.0.41"
 cw-multi-test = "0.16.6"
 token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
 token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
