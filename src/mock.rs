@@ -4,7 +4,7 @@ use cosmwasm_schema::{
     serde::{de::DeserializeOwned, Serialize},
 };
 use cosmwasm_std::{
-    from_binary, Addr, Api, CanonicalAddr, Coin, ContractResult, Ibc3ChannelOpenResponse,
+    from_json, Addr, Api, CanonicalAddr, Coin, ContractResult, Ibc3ChannelOpenResponse,
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcPacketAckMsg,
     IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Order, Record,
     RecoverPubkeyError, Reply, Response, StdError, StdResult, Storage as StdStorage,
@@ -502,7 +502,7 @@ impl MockContract {
         let serialized_msg =
             to_vec(&msg).expect("Testing error: Could not seralize request message");
         let ret: T = match call_query(&mut self.instance, &env, &serialized_msg) {
-            Ok(ContractResult::Ok(binary)) => match from_binary(&binary) {
+            Ok(ContractResult::Ok(binary)) => match from_json(&binary) {
                 Ok(ret) => ret,
                 Err(error) => return ContractResult::Err(error.to_string()),
             },

@@ -3,16 +3,36 @@ name = "cosmwasm-testing-util"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+backtrace = ["anyhow/backtrace"]
+cosmwasm_1_1 = ["cosmwasm-std/cosmwasm_1_1", "cw-multi-test/cosmwasm_1_1"]
+cosmwasm_1_2 = [
+    "cosmwasm_1_1",
+    "cosmwasm-std/cosmwasm_1_2",
+    "cw-multi-test/cosmwasm_1_2",
+]
+cosmwasm_1_3 = [
+    "cosmwasm_1_2",
+    "cosmwasm-std/cosmwasm_1_3",
+    "cw-multi-test/cosmwasm_1_3",
+]
+cosmwasm_1_4 = [
+    "cosmwasm_1_3",
+    "cosmwasm-std/cosmwasm_1_4",
+    "cw-multi-test/cosmwasm_1_4",
+]
+
 [dependencies]
-cosmwasm-std = "1.2.8"
-cosmwasm-schema = "1.2.8"
-cosmwasm-crypto = "1.2.8"
-cosmwasm-vm = { version = "1.2.8", features = ["stargate"] }
+cosmwasm-std = "1.5"
+cosmwasm-schema = "1.5"
+cosmwasm-crypto = "1.5"
+cosmwasm-vm = { version = "1.5", features = ["stargate"] }
 bech32 = "0.9.1"
-cw20 = { version = "1.0.1" }
-cw20-base = { version = "1.0.1" }
+cw20 = { version = "1.0" }
+cw20-base = { version = "1.0" }
 anyhow = "1.0.41"
-cw-multi-test = "0.16.6"
-token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
-token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
-tokenfactory = { git = "https://github.com/oraichain/token-bindings.git", rev = "d379675" }
+cw-multi-test = { version = "1.0" }
+token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
+token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
+tokenfactory = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
