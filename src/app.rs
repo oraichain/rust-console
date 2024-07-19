@@ -3,7 +3,7 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
     Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Empty, IbcMsg, IbcQuery,
-    QuerierWrapper, QueryRequest, StdResult, Uint128,
+    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128,
 };
 use cw20::TokenInfoResponse;
 use std::any::TypeId;
@@ -98,11 +98,11 @@ impl MockApp {
         init_msg: &T,
         send_funds: &[Coin],
         label: &str,
-    ) -> Result<Addr, String> {
+    ) -> StdResult<Addr> {
         let contract_addr = self
             .app
             .instantiate_contract(code_id, sender, init_msg, send_funds, label, None)
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| StdError::generic_err(err.to_string()))?;
         self.app.update_block(next_block);
         Ok(contract_addr)
     }
@@ -113,18 +113,18 @@ impl MockApp {
         contract_addr: Addr,
         msg: &T,
         send_funds: &[Coin],
-    ) -> Result<AppResponse, String> {
+    ) -> StdResult<AppResponse> {
         let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
             std::mem::forget(value);
             self.app
                 .execute(contract_addr, dest.into())
-                .map_err(|err| err.to_string())?
+                .map_err(|err| StdError::generic_err(err.to_string()))?
         } else {
             self.app
                 .execute_contract(sender, contract_addr, msg, send_funds)
-                .map_err(|err| err.to_string())?
+                .map_err(|err| StdError::generic_err(err.to_string()))?
         };
 
         self.app.update_block(next_block);
@@ -269,7 +269,7 @@ impl MockApp {
         recipient: &str,
         cw20_addr: &str,
         amount: u128,
-    ) -> Result<AppResponse, String> {
+    ) -> StdResult<AppResponse> {
         self.execute(
             Addr::unchecked(sender),
             Addr::unchecked(cw20_addr),
@@ -285,7 +285,7 @@ impl MockApp {
         &mut self,
         sender: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> Result<Vec<Addr>, String> {
+    ) -> StdResult<Vec<Addr>> {
         let mut contract_addrs = vec![];
         for (token, balances) in balances {
             let contract_addr = match self.token_map.get(*token) {
@@ -313,7 +313,7 @@ impl MockApp {
         &mut self,
         owner: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> Result<Vec<Addr>, String> {
+    ) -> StdResult<Vec<Addr>> {
         self.set_token_balances_from(owner, balances)
     }
 
@@ -323,7 +323,7 @@ impl MockApp {
         approver: &str,
         spender: &str,
         amount: u128,
-    ) -> Result<AppResponse, String> {
+    ) -> StdResult<AppResponse> {
         let token_addr = match self.token_map.get(token) {
             Some(v) => v.to_owned(),
             None => Addr::unchecked(token),
@@ -342,7 +342,7 @@ impl MockApp {
     }
 
     /// external method
-    pub fn create_tokenfactory(&mut self, sender: Addr) -> Result<Addr, String> {
+    pub fn create_tokenfactory(&mut self, sender: Addr) -> StdResult<Addr> {
         let addr = self.instantiate(
             self.tokenfactory_id,
             sender,
@@ -353,10 +353,10 @@ impl MockApp {
         Ok(addr)
     }
 
-    pub fn assert_fail(&self, res: Result<AppResponse, String>) {
+    pub fn assert_fail(&self, res: StdResult<AppResponse>) {
         // new version of cosmwasm does not return detail error
         match res.err() {
-            Some(msg) => assert!(msg.contains("error executing WasmMsg")),
+            Some(msg) => assert!(msg.to_string().contains("error executing WasmMsg")),
             None => panic!("Must return generic error"),
         }
     }
