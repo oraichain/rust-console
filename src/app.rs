@@ -98,7 +98,7 @@ impl MockApp {
         init_msg: &T,
         send_funds: &[Coin],
         label: &str,
-    ) -> StdResult<Addr> {
+    ) -> MockResult<Addr> {
         let contract_addr = self
             .app
             .instantiate_contract(code_id, sender, init_msg, send_funds, label, None)
@@ -144,7 +144,7 @@ impl MockApp {
         }
     }
 
-    pub fn query_balance(&self, account_addr: Addr, denom: String) -> StdResult<Uint128> {
+    pub fn query_balance(&self, account_addr: Addr, denom: String) -> MockResult<Uint128> {
         let balance: BalanceResponse =
             self.app
                 .wrap()
@@ -155,7 +155,7 @@ impl MockApp {
         Ok(balance.amount.amount)
     }
 
-    pub fn query_all_balances(&self, account_addr: Addr) -> StdResult<Vec<Coin>> {
+    pub fn query_all_balances(&self, account_addr: Addr) -> MockResult<Vec<Coin>> {
         let all_balances: AllBalanceResponse =
             self.app
                 .wrap()
@@ -165,7 +165,7 @@ impl MockApp {
         Ok(all_balances.amount)
     }
 
-    pub fn register_token(&mut self, contract_addr: Addr) -> StdResult<String> {
+    pub fn register_token(&mut self, contract_addr: Addr) -> MockResult<String> {
         let res: cw20::TokenInfoResponse =
             self.query(contract_addr.clone(), &cw20::Cw20QueryMsg::TokenInfo {})?;
         self.token_map.insert(res.symbol.clone(), contract_addr);
@@ -176,7 +176,7 @@ impl MockApp {
         &self,
         contract_addr: &str,
         account_addr: &str,
-    ) -> StdResult<Uint128> {
+    ) -> MockResult<Uint128> {
         let res: cw20::BalanceResponse = self.query(
             Addr::unchecked(contract_addr),
             &cw20::Cw20QueryMsg::Balance {
@@ -190,7 +190,7 @@ impl MockApp {
         self.query(contract_addr, &cw20::Cw20QueryMsg::TokenInfo {})
     }
 
-    pub fn query_token_balances(&self, account_addr: &str) -> StdResult<Vec<Coin>> {
+    pub fn query_token_balances(&self, account_addr: &str) -> MockResult<Vec<Coin>> {
         let mut balances = vec![];
         for (denom, contract_addr) in self.token_map.iter() {
             let res: cw20::BalanceResponse = self.query(
@@ -339,7 +339,7 @@ impl MockApp {
     }
 
     /// external method
-    pub fn create_tokenfactory(&mut self, sender: Addr) -> StdResult<Addr> {
+    pub fn create_tokenfactory(&mut self, sender: Addr) -> MockResult<Addr> {
         let addr = self.instantiate(
             self.tokenfactory_id,
             sender,
@@ -350,7 +350,7 @@ impl MockApp {
         Ok(addr)
     }
 
-    pub fn assert_fail(&self, res: StdResult<AppResponse>) {
+    pub fn assert_fail(&self, res: MockResult<AppResponse>) {
         // new version of cosmwasm does not return detail error
         match res.err() {
             Some(msg) => assert!(msg.to_string().contains("error executing WasmMsg")),
