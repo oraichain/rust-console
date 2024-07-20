@@ -4,7 +4,7 @@ use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
     Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Empty, IbcMsg, IbcQuery,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128,
+    QuerierWrapper, QueryRequest, StdResult, Uint128,
 };
 use cw20::TokenInfoResponse;
 use cw_multi_test::{
@@ -101,8 +101,7 @@ impl MockApp {
     ) -> MockResult<Addr> {
         let contract_addr = self
             .app
-            .instantiate_contract(code_id, sender, init_msg, send_funds, label, None)
-            .map_err(|err| StdError::generic_err(err.to_string()))?;
+            .instantiate_contract(code_id, sender, init_msg, send_funds, label, None)?;
         self.app.update_block(next_block);
         Ok(contract_addr)
     }
