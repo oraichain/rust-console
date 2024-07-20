@@ -1,4 +1,4 @@
-use anyhow::Result as AnyResult;
+use crate::MockResult;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
@@ -113,7 +113,7 @@ impl MockApp {
         contract_addr: Addr,
         msg: &T,
         send_funds: &[Coin],
-    ) -> AnyResult<AppResponse> {
+    ) -> MockResult<AppResponse> {
         let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
@@ -266,7 +266,7 @@ impl MockApp {
         recipient: &str,
         cw20_addr: &str,
         amount: u128,
-    ) -> AnyResult<AppResponse> {
+    ) -> MockResult<AppResponse> {
         self.execute(
             Addr::unchecked(sender),
             Addr::unchecked(cw20_addr),
@@ -282,7 +282,7 @@ impl MockApp {
         &mut self,
         sender: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> AnyResult<Vec<Addr>> {
+    ) -> MockResult<Vec<Addr>> {
         let mut contract_addrs = vec![];
         for (token, balances) in balances {
             let contract_addr = match self.token_map.get(*token) {
@@ -310,7 +310,7 @@ impl MockApp {
         &mut self,
         owner: &str,
         balances: &[(&str, &[(&str, u128)])],
-    ) -> AnyResult<Vec<Addr>> {
+    ) -> MockResult<Vec<Addr>> {
         self.set_token_balances_from(owner, balances)
     }
 
@@ -320,7 +320,7 @@ impl MockApp {
         approver: &str,
         spender: &str,
         amount: u128,
-    ) -> AnyResult<AppResponse> {
+    ) -> MockResult<AppResponse> {
         let token_addr = match self.token_map.get(token) {
             Some(v) => v.to_owned(),
             None => Addr::unchecked(token),
