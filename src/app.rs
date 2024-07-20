@@ -3,8 +3,8 @@ use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    Addr, AllBalanceResponse, BalanceResponse, BankQuery, Coin, Empty, IbcMsg, IbcQuery,
-    QuerierWrapper, QueryRequest, StdResult, Uint128,
+    Addr, AllBalanceResponse, BankQuery, Coin, Empty, IbcMsg, IbcQuery, QuerierWrapper,
+    QueryRequest, StdResult, Uint128,
 };
 use cw20::TokenInfoResponse;
 use cw_multi_test::{
@@ -144,14 +144,8 @@ impl MockApp {
     }
 
     pub fn query_balance(&self, account_addr: Addr, denom: String) -> MockResult<Uint128> {
-        let balance: BalanceResponse =
-            self.app
-                .wrap()
-                .query(&QueryRequest::Bank(BankQuery::Balance {
-                    address: account_addr.to_string(),
-                    denom,
-                }))?;
-        Ok(balance.amount.amount)
+        let balance = self.app.wrap().query_balance(account_addr, denom)?;
+        Ok(balance.amount)
     }
 
     pub fn query_all_balances(&self, account_addr: Addr) -> MockResult<Vec<Coin>> {
