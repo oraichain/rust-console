@@ -41,6 +41,14 @@ impl MockApp {
         Self::new_with_creation_fee(init_balances, vec![])
     }
 
+    pub fn token_id(&self) -> u64 {
+        self.token_id
+    }
+
+    pub fn tokenfactory_id(&self) -> u64 {
+        self.tokenfactory_id
+    }
+
     pub fn new_with_creation_fee(
         init_balances: &[(&str, &[Coin])],
         denom_creation_fee: Vec<Coin>,
