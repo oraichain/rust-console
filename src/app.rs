@@ -243,17 +243,17 @@ impl MockApp {
         addr
     }
 
-    pub fn set_balances_from(&mut self, sender: Addr, balances: &[(&str, &[(&str, &Uint128)])]) {
-        for (denom, balance) in balances.iter() {
+    pub fn set_balances_from(&mut self, sender: Addr, balances: &[(&str, &[(&str, u128)])]) {
+        for (denom, balance) in balances {
             // send for each recipient
-            for (recipient, &amount) in balance.iter() {
+            for (recipient, amount) in balance.iter() {
                 self.app
                     .send_tokens(
                         sender.clone(),
                         Addr::unchecked(*recipient),
                         &[Coin {
                             denom: denom.to_string(),
-                            amount,
+                            amount: Uint128::from(*amount),
                         }],
                     )
                     .unwrap();
@@ -302,7 +302,7 @@ impl MockApp {
         Ok(contract_addrs)
     }
 
-    pub fn set_balances(&mut self, owner: &str, balances: &[(&str, &[(&str, &Uint128)])]) {
+    pub fn set_balances(&mut self, owner: &str, balances: &[(&str, &[(&str, u128)])]) {
         self.set_balances_from(Addr::unchecked(owner), balances)
     }
 
