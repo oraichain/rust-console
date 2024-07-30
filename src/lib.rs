@@ -9,6 +9,7 @@ pub use mock::*;
 #[macro_export]
 macro_rules! log {
     ($($a:tt)*) => {
-        &cosmwasm_schema::schemars::_serde_json::to_string_pretty(&($($a)*)).unwrap()
+        #[cfg(debug_assertions)]
+        println!("{}", &cosmwasm_schema::schemars::_serde_json::to_string_pretty(&($($a)*)).unwrap())
     };
 }

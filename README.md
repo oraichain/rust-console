@@ -3,5 +3,5 @@
 #### How to use?
 
 ```rust
-console::log!("hello", &msg1, &msg2);
+log!("hello", &msg1, &msg2);
 ```
