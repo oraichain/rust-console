@@ -136,6 +136,14 @@ impl MockApp {
         Ok(response)
     }
 
+    pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
+        let response = self.app.wasm_sudo(contract_addr, msg)?;
+
+        self.app.update_block(next_block);
+
+        Ok(response)
+    }
+
     pub fn query<T: DeserializeOwned, U: Serialize + Clone + 'static>(
         &self,
         contract_addr: Addr,
