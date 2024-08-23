@@ -5,7 +5,6 @@ pub use anyhow::Result as MockResult;
 pub use app::*;
 pub use cw_multi_test::*;
 pub use mock::*;
-pub use token_bindings::*;
 
 #[macro_export]
 macro_rules! log {
