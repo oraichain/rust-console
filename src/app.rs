@@ -36,7 +36,9 @@ pub type AppWrapped = App<
 pub type Code = Box<dyn Contract<TokenFactoryMsg, TokenFactoryQuery>>;
 
 pub trait MockApp {
-    fn new(init_balances: &[(&str, &[Coin])]) -> Self;
+    fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>)
+    where
+        Self: Sized;
     fn instantiate<T: Serialize>(
         &mut self,
         code_id: u64,
@@ -85,7 +87,8 @@ impl MultiTestMockApp {
     pub fn new_with_creation_fee(
         init_balances: &[(&str, &[Coin])],
         denom_creation_fee: Vec<Coin>,
-    ) -> Self {
+    ) -> (Self, Vec<String>) {
+        let mut accounts = vec![];
         let mut app = BasicAppBuilder::<TokenFactoryMsg, TokenFactoryQuery>::new_custom()
             .with_custom(TokenFactoryModule::new(denom_creation_fee))
             .build(|router, _, storage| {
@@ -98,6 +101,8 @@ impl MultiTestMockApp {
                             init_funds.to_vec(),
                         )
                         .unwrap();
+
+                    accounts.push(owner.to_string());
                 }
             });
 
@@ -114,12 +119,15 @@ impl MultiTestMockApp {
             tokenfactory::contract::query,
         )));
 
-        Self {
-            app,
-            token_id,
-            token_map: HashMap::new(),
-            tokenfactory_id,
-        }
+        (
+            Self {
+                app,
+                token_id,
+                token_map: HashMap::new(),
+                tokenfactory_id,
+            },
+            accounts,
+        )
     }
 
     pub fn set_token_contract(&mut self, code: Code) {
@@ -138,8 +146,8 @@ impl MultiTestMockApp {
 }
 
 impl MockApp for MultiTestMockApp {
-    fn new(init_balances: &[(&str, &[Coin])]) -> Self {
-        Self::new_with_creation_fee(init_balances, vec![])
+    fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
+        Self::new_with_creation_fee(init_balances, coins(10_000_000u128, "orai"))
     }
     fn instantiate<T: Serialize>(
         &mut self,
@@ -238,7 +246,8 @@ pub struct TestTubeMockApp {
     pub app: OraichainTestApp,
     owner: SigningAccount,
     token_map: HashMap<String, Addr>, // map token name to address
-    account_map: HashMap<Addr, SigningAccount>, // map token name to address
+    account_map: HashMap<String, SigningAccount>, // map token name to address
+    account_name_map: HashMap<String, String>, // map name to account address
     token_id: u64,
     tokenfactory_id: u64,
     pub block_time: u64,
@@ -261,9 +270,16 @@ impl TestTubeMockApp {
     }
 
     fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
-        let Some(signer) = self.account_map.get(&sender) else {
+        let sender_addr = if let Some(sender_addr) = self.account_name_map.get(sender.as_str()) {
+            sender_addr
+        } else {
+            sender.as_str()
+        };
+
+        let Some(signer) = self.account_map.get(sender_addr) else {
             return Err(anyhow::Error::msg("Account not existed"));
         };
+
         Ok(signer)
     }
 
@@ -291,12 +307,17 @@ impl TestTubeMockApp {
 }
 
 impl MockApp for TestTubeMockApp {
-    fn new(init_balances: &[(&str, &[Coin])]) -> Self {
+    fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
         let app = OraichainTestApp::new();
+        let mut accounts = vec![];
         let mut account_map = HashMap::default();
+        let mut account_name_map = HashMap::default();
         for (owner, init_funds) in init_balances.iter() {
             let acc = app.init_account(init_funds).unwrap();
-            account_map.insert(Addr::unchecked(owner.to_string()), acc);
+            let acc_addr = acc.address();
+            account_map.insert(acc_addr.to_string(), acc);
+            account_name_map.insert(owner.to_string(), acc_addr.to_string());
+            accounts.push(acc_addr.to_string());
         }
 
         let wasm = Wasm::new(&app);
@@ -304,6 +325,7 @@ impl MockApp for TestTubeMockApp {
         let owner = app
             .init_account(&coins(5_000_000_000_000u128, "orai"))
             .unwrap();
+
         let tokenfactory_id = wasm
             .store_code(TOKENFACTORY_BYTES, None, &owner)
             .unwrap()
@@ -314,15 +336,20 @@ impl MockApp for TestTubeMockApp {
             .unwrap()
             .data
             .code_id;
-        Self {
-            token_map: HashMap::new(),
-            account_map,
-            token_id,
-            tokenfactory_id,
-            owner,
-            app,
-            block_time: 5u64,
-        }
+
+        (
+            Self {
+                token_map: HashMap::new(),
+                account_map,
+                account_name_map,
+                token_id,
+                tokenfactory_id,
+                owner,
+                app,
+                block_time: 5u64,
+            },
+            accounts,
+        )
     }
 
     fn instantiate<T: Serialize>(
@@ -335,6 +362,7 @@ impl MockApp for TestTubeMockApp {
     ) -> MockResult<Addr> {
         let wasm = Wasm::new(&self.app);
         let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
+
         let contract_addr = wasm
             .instantiate(
                 code_id,
@@ -346,6 +374,7 @@ impl MockApp for TestTubeMockApp {
             )?
             .data
             .address;
+
         self.app.increase_time(self.block_time);
 
         Ok(Addr::unchecked(contract_addr))
