@@ -543,6 +543,7 @@ pub trait MockTokenExtensions {
     ) -> MockResult<AppResponse>;
 }
 
+#[macro_export]
 macro_rules! impl_mock_token_trait {
     ($impl:tt) => {
         impl MockTokenExtensions for $impl {
@@ -735,6 +736,3 @@ macro_rules! impl_mock_token_trait {
         }
     };
 }
-
-impl_mock_token_trait!(MultiTestMockApp);
-impl_mock_token_trait!(TestTubeMockApp);
