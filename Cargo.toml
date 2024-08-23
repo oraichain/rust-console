@@ -22,6 +22,7 @@ cosmwasm_1_4 = [
     "cosmwasm-std/cosmwasm_1_4",
     "cw-multi-test/cosmwasm_1_4",
 ]
+test-tube = []
 
 [dependencies]
 cosmwasm-std = "1.5"

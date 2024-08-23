@@ -35,7 +35,7 @@ pub type AppWrapped = App<
 >;
 pub type Code = Box<dyn Contract<TokenFactoryMsg, TokenFactoryQuery>>;
 
-pub trait MockApp {
+pub trait MockAppExtensions {
     fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>)
     where
         Self: Sized;
@@ -75,6 +75,7 @@ pub trait MockApp {
     fn query_supply(&self, denom: &str) -> MockResult<Coin>;
 }
 
+#[allow(dead_code)]
 pub struct MultiTestMockApp {
     pub app: AppWrapped,
     token_map: HashMap<String, Addr>, // map token name to address
@@ -82,7 +83,6 @@ pub struct MultiTestMockApp {
     tokenfactory_id: u64,
 }
 
-#[allow(dead_code)]
 impl MultiTestMockApp {
     pub fn new_with_creation_fee(
         init_balances: &[(&str, &[Coin])],
@@ -145,7 +145,7 @@ impl MultiTestMockApp {
     }
 }
 
-impl MockApp for MultiTestMockApp {
+impl MockAppExtensions for MultiTestMockApp {
     fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
         Self::new_with_creation_fee(init_balances, coins(10_000_000u128, "orai"))
     }
@@ -242,6 +242,8 @@ impl MockApp for MultiTestMockApp {
 
 static CW20_BYTES: &[u8] = include_bytes!("./testdata/cw20-base.wasm");
 static TOKENFACTORY_BYTES: &[u8] = include_bytes!("./testdata/tokenfactory.wasm");
+
+#[allow(dead_code)]
 pub struct TestTubeMockApp {
     pub app: OraichainTestApp,
     owner: SigningAccount,
@@ -306,7 +308,7 @@ impl TestTubeMockApp {
     }
 }
 
-impl MockApp for TestTubeMockApp {
+impl MockAppExtensions for TestTubeMockApp {
     fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
         let app = OraichainTestApp::new();
         let mut accounts = vec![];
@@ -736,3 +738,10 @@ macro_rules! impl_mock_token_trait {
         }
     };
 }
+
+#[cfg(feature = "test-tube")]
+pub type MockApp = TestTubeMockApp;
+#[cfg(not(feature = "test-tube"))]
+pub type MockApp = MultiTestMockApp;
+
+impl_mock_token_trait!(MockApp);

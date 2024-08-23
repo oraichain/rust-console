@@ -2,7 +2,7 @@ pub mod app;
 pub mod mock;
 
 pub use anyhow::Result as MockResult;
-pub use app::*;
+pub use app::{MockAppExtensions, MockTokenExtensions, TestMockApp};
 pub use cw_multi_test::*;
 pub use mock::*;
 
