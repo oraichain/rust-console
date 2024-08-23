@@ -362,7 +362,6 @@ impl MockApp for TestTubeMockApp {
     ) -> MockResult<Addr> {
         let wasm = Wasm::new(&self.app);
         let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
-
         let contract_addr = wasm
             .instantiate(
                 code_id,
