@@ -36,3 +36,6 @@ cw-multi-test = { version = "1.0" }
 token-bindings = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
 token-bindings-test = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
 tokenfactory = { git = "https://github.com/oraichain/token-bindings.git", rev = "7861576" }
+osmosis-test-tube = { git = "https://github.com/oraichain/test-tube.git", rev = "3a74cfd", features = [
+    "wasm-sudo",
+] }
