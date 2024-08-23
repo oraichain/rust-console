@@ -740,8 +740,8 @@ macro_rules! impl_mock_token_trait {
 }
 
 #[cfg(feature = "test-tube")]
-pub type MockApp = TestTubeMockApp;
+pub type TestMockApp = TestTubeMockApp;
 #[cfg(not(feature = "test-tube"))]
-pub type MockApp = MultiTestMockApp;
+pub type TestMockApp = MultiTestMockApp;
 
-impl_mock_token_trait!(MockApp);
+impl_mock_token_trait!(TestMockApp);
