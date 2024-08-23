@@ -12,7 +12,7 @@ use cw_multi_test::{
     DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
 use osmosis_test_tube::cosmrs::proto::cosmos::bank::v1beta1::{
-    MsgSend, QueryAllBalancesRequest, QueryBalanceRequest,
+    MsgSend, QueryAllBalancesRequest, QueryBalanceRequest, QuerySupplyOfRequest,
 };
 use osmosis_test_tube::cosmrs::tx::MessageExt;
 use osmosis_test_tube::{Account, SigningAccount};
@@ -63,12 +63,14 @@ pub trait MockApp {
 
     fn query_all_balances(&self, account_addr: Addr) -> MockResult<Vec<Coin>>;
 
-    fn send_tokens(
+    fn send_coins(
         &mut self,
         sender: Addr,
         recipient: Addr,
         amount: &[Coin],
     ) -> MockResult<AppResponse>;
+
+    fn query_supply(&self, denom: &str) -> MockResult<Coin>;
 }
 
 pub struct MultiTestMockApp {
@@ -205,7 +207,7 @@ impl MockApp for MultiTestMockApp {
         Ok(balance.amount)
     }
 
-    fn send_tokens(
+    fn send_coins(
         &mut self,
         sender: Addr,
         recipient: Addr,
@@ -222,6 +224,11 @@ impl MockApp for MultiTestMockApp {
                     address: account_addr.to_string(),
                 }))?;
         Ok(all_balances.amount)
+    }
+
+    fn query_supply(&self, denom: &str) -> MockResult<Coin> {
+        let supply = self.app.wrap().query_supply(denom)?;
+        Ok(supply)
     }
 }
 
@@ -293,6 +300,7 @@ impl MockApp for TestTubeMockApp {
         }
 
         let wasm = Wasm::new(&app);
+
         let owner = app
             .init_account(&coins(5_000_000_000_000u128, "orai"))
             .unwrap();
@@ -415,7 +423,7 @@ impl MockApp for TestTubeMockApp {
             .collect())
     }
 
-    fn send_tokens(
+    fn send_coins(
         &mut self,
         sender: Addr,
         recipient: Addr,
@@ -436,6 +444,20 @@ impl MockApp for TestTubeMockApp {
             data: Some(Binary::from(response.data.to_bytes()?)),
             events: response.events,
         })
+    }
+
+    fn query_supply(&self, denom: &str) -> MockResult<Coin> {
+        let bank = osmosis_test_tube::Bank::new(&self.app);
+        let res = bank.query_supply_of(&QuerySupplyOfRequest {
+            denom: denom.to_string(),
+        })?;
+        Ok(res
+            .amount
+            .map(|a| Coin {
+                amount: Uint128::from_str(&a.amount).unwrap(),
+                denom: a.denom,
+            })
+            .unwrap_or_default())
     }
 }
 
@@ -592,7 +614,7 @@ macro_rules! impl_mock_token_trait {
                 for (denom, balance) in balances {
                     // send for each recipient
                     for (recipient, amount) in balance.iter() {
-                        self.send_tokens(
+                        self.send_coins(
                             sender.clone(),
                             Addr::unchecked(*recipient),
                             &[Coin {
