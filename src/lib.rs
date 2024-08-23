@@ -2,11 +2,9 @@ pub mod app;
 pub mod mock;
 
 pub use anyhow::Result as MockResult;
-pub use app::TestMockApp;
+pub use app::{MockAppExtensions, MockTokenExtensions, TestMockApp};
 pub use cw_multi_test::*;
 pub use mock::*;
-
-pub use crate::app::{MockAppExtensions, MockTokenExtensions};
 
 #[macro_export]
 macro_rules! log {
