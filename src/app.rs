@@ -226,7 +226,6 @@ macro_rules! impl_mock_token_trait {
     };
 }
 
-#[allow(dead_code)]
 pub struct MultiTestMockApp {
     pub app: AppWrapped,
     token_map: HashMap<String, Addr>, // map token name to address
@@ -345,7 +344,7 @@ impl MultiTestMockApp {
         Ok(response)
     }
 
-    fn query<T: DeserializeOwned, U: Serialize + Clone + 'static>(
+    pub fn query<T: DeserializeOwned, U: Serialize + Clone + 'static>(
         &self,
         contract_addr: Addr,
         msg: &U,
@@ -365,7 +364,7 @@ impl MultiTestMockApp {
         Ok(balance.amount)
     }
 
-    fn send_coins(
+    pub fn send_coins(
         &mut self,
         sender: Addr,
         recipient: Addr,
@@ -392,7 +391,6 @@ impl MultiTestMockApp {
     impl_mock_token_trait!();
 }
 
-#[allow(dead_code)]
 pub struct TestTubeMockApp {
     pub app: OraichainTestApp,
     owner: SigningAccount,
