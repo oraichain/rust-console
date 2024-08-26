@@ -307,6 +307,15 @@ impl MultiTestMockApp {
         self.app.block_info().time
     }
 
+    pub fn increase_time(&mut self, seconds: u64) {
+        let current_block = self.app.block_info();
+        self.app.set_block(BlockInfo {
+            chain_id: current_block.chain_id,
+            height: current_block.height + 1,
+            time: current_block.time.plus_seconds(seconds),
+        })
+    }
+
     pub fn upload(&mut self, code: Code) -> u64 {
         let code_id = self.app.store_code(code);
         self.app.update_block(next_block);
@@ -525,6 +534,10 @@ impl TestTubeMockApp {
 
     pub fn get_block_time(&self) -> Timestamp {
         self.app.get_block_timestamp()
+    }
+
+    pub fn increase_time(&mut self, seconds: u64) {
+        self.app.increase_time(seconds)
     }
 
     pub fn instantiate<T: Serialize>(
