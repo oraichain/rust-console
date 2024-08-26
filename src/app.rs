@@ -338,7 +338,6 @@ impl MultiTestMockApp {
 
     pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
         let response = self.app.wasm_sudo(contract_addr, msg)?;
-
         self.app.update_block(next_block);
 
         Ok(response)
@@ -549,7 +548,6 @@ impl TestTubeMockApp {
     }
 
     pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
-        // let wasm = Wasm::new(&self.app);
         let response = self.app.wasm_sudo(contract_addr.as_str(), msg)?;
 
         self.app.increase_time(self.block_time);
