@@ -3,8 +3,8 @@ use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    coins, Addr, AllBalanceResponse, BankQuery, Binary, Coin, Empty, IbcMsg, IbcQuery,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128,
+    coins, Addr, AllBalanceResponse, BankQuery, Binary, BlockInfo, Coin, Empty, IbcMsg, IbcQuery,
+    QuerierWrapper, QueryRequest, StdError, StdResult, Timestamp, Uint128,
 };
 use cw20::TokenInfoResponse;
 use cw_multi_test::{
@@ -16,10 +16,11 @@ use osmosis_test_tube::cosmrs::proto::cosmos::bank::v1beta1::{
 };
 use osmosis_test_tube::cosmrs::tx::MessageExt;
 use osmosis_test_tube::{Account, SigningAccount};
-use osmosis_test_tube::{Module, OraichainTestApp, Wasm};
+use osmosis_test_tube::{Module, OraichainTestApp, Wasm, CHAIN_ID, FEE_DENOM};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time;
 use token_bindings::{TokenFactoryMsg, TokenFactoryQuery};
 use token_bindings_test::TokenFactoryModule;
 
@@ -235,7 +236,7 @@ pub struct MultiTestMockApp {
 
 impl MultiTestMockApp {
     pub fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
-        Self::new_with_creation_fee(init_balances, coins(10_000_000u128, "orai"))
+        Self::new_with_creation_fee(init_balances, coins(10_000_000u128, FEE_DENOM))
     }
 
     pub fn new_with_creation_fee(
@@ -244,6 +245,16 @@ impl MultiTestMockApp {
     ) -> (Self, Vec<String>) {
         let mut accounts = vec![];
         let mut app = BasicAppBuilder::<TokenFactoryMsg, TokenFactoryQuery>::new_custom()
+            .with_block(BlockInfo {
+                height: 10,
+                chain_id: CHAIN_ID.to_string(),
+                time: Timestamp::from_seconds(
+                    time::SystemTime::now()
+                        .duration_since(time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                ),
+            })
             .with_custom(TokenFactoryModule::new(denom_creation_fee))
             .build(|router, _, storage| {
                 for (owner, init_funds) in init_balances.iter() {
@@ -286,6 +297,14 @@ impl MultiTestMockApp {
 
     pub fn set_token_contract(&mut self, code: Code) {
         self.token_id = self.upload(code);
+    }
+
+    pub fn get_block_height(&self) -> u64 {
+        self.app.block_info().height
+    }
+
+    pub fn get_block_time(&self) -> Timestamp {
+        self.app.block_info().time
     }
 
     pub fn upload(&mut self, code: Code) -> u64 {
@@ -471,7 +490,7 @@ impl TestTubeMockApp {
         let wasm = Wasm::new(&app);
 
         let owner = app
-            .init_account(&coins(5_000_000_000_000u128, "orai"))
+            .init_account(&coins(5_000_000_000_000u128, FEE_DENOM))
             .unwrap();
 
         let tokenfactory_id = wasm
@@ -498,6 +517,14 @@ impl TestTubeMockApp {
             },
             accounts,
         )
+    }
+
+    pub fn get_block_height(&self) -> u64 {
+        self.app.get_block_height() as u64
+    }
+
+    pub fn get_block_time(&self) -> Timestamp {
+        self.app.get_block_timestamp()
     }
 
     pub fn instantiate<T: Serialize>(
