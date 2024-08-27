@@ -308,12 +308,10 @@ impl MultiTestMockApp {
     }
 
     pub fn increase_time(&mut self, seconds: u64) {
-        let current_block = self.app.block_info();
-        self.app.set_block(BlockInfo {
-            chain_id: current_block.chain_id,
-            height: current_block.height + 1,
-            time: current_block.time.plus_seconds(seconds),
-        })
+        self.app.update_block(|block| {
+            block.time = block.time.plus_seconds(seconds);
+            block.height += 1;
+        });
     }
 
     pub fn upload(&mut self, code: Code) -> u64 {
@@ -426,7 +424,6 @@ pub struct TestTubeMockApp {
     account_name_map: HashMap<String, String>, // map name to account address
     token_id: u64,
     tokenfactory_id: u64,
-    pub block_time: u64,
 }
 
 impl TestTubeMockApp {
@@ -441,7 +438,6 @@ impl TestTubeMockApp {
             .unwrap()
             .data
             .code_id;
-        self.app.increase_time(self.block_time);
         code_id
     }
 
@@ -522,7 +518,6 @@ impl TestTubeMockApp {
                 tokenfactory_id,
                 owner,
                 app,
-                block_time: 5u64,
             },
             accounts,
         )
@@ -562,8 +557,6 @@ impl TestTubeMockApp {
             .data
             .address;
 
-        self.app.increase_time(self.block_time);
-
         Ok(Addr::unchecked(contract_addr))
     }
 
@@ -579,8 +572,6 @@ impl TestTubeMockApp {
         let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
         let execute_res = wasm.execute(contract_addr.as_str(), msg, &funds, signer)?;
 
-        self.app.increase_time(self.block_time);
-
         Ok(AppResponse {
             events: execute_res.events,
             data: Some(Binary::from(execute_res.data.data)),
@@ -589,8 +580,6 @@ impl TestTubeMockApp {
 
     pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
         let response = self.app.wasm_sudo(contract_addr.as_str(), msg)?;
-
-        self.app.increase_time(self.block_time);
 
         Ok(AppResponse {
             events: vec![],
