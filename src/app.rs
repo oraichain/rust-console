@@ -15,8 +15,9 @@ use osmosis_test_tube::cosmrs::proto::cosmos::bank::v1beta1::{
     MsgSend, QueryAllBalancesRequest, QueryBalanceRequest, QuerySupplyOfRequest,
 };
 use osmosis_test_tube::cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
+use osmosis_test_tube::cosmrs::proto::cosmwasm::wasm::v1::SetGasLessContractsProposal;
 use osmosis_test_tube::cosmrs::tx::MessageExt;
-use osmosis_test_tube::{Account, SigningAccount};
+use osmosis_test_tube::{Account, GovWithAppAccess, SigningAccount};
 use osmosis_test_tube::{Module, OraichainTestApp, Wasm, CHAIN_ID, FEE_DENOM};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -461,6 +462,23 @@ impl TestTubeMockApp {
             .data
             .code_id;
         code_id
+    }
+
+    pub fn set_gasless(&mut self, sender: &Addr, contract_addr: &Addr) -> MockResult<()> {
+        let gov = GovWithAppAccess::new(&self.app);
+        let signer = self.get_signer(&sender)?;
+        gov.propose_and_execute(
+            "/cosmwasm.wasm.v1.SetGasLessContractsProposal".to_string(),
+            SetGasLessContractsProposal {
+                title: String::from("Set Gasless"),
+                description: String::from("Set Gasless"),
+                contract_addresses: vec![contract_addr.to_string()],
+            },
+            signer.address(),
+            false,
+            &signer,
+        )?;
+        Ok(())
     }
 
     fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
