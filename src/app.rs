@@ -3,8 +3,8 @@ use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    coins, Addr, AllBalanceResponse, BankQuery, Binary, BlockInfo, Coin, Empty, IbcMsg, IbcQuery,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Timestamp, Uint128,
+    coins, Addr, AllBalanceResponse, BankQuery, Binary, BlockInfo, Coin, Empty, Event, IbcMsg,
+    IbcQuery, QuerierWrapper, QueryRequest, StdError, StdResult, Timestamp, Uint128,
 };
 use cw20::TokenInfoResponse;
 use cw_multi_test::{
@@ -14,6 +14,7 @@ use cw_multi_test::{
 use osmosis_test_tube::cosmrs::proto::cosmos::bank::v1beta1::{
     MsgSend, QueryAllBalancesRequest, QueryBalanceRequest, QuerySupplyOfRequest,
 };
+use osmosis_test_tube::cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
 use osmosis_test_tube::cosmrs::tx::MessageExt;
 use osmosis_test_tube::{Account, SigningAccount};
 use osmosis_test_tube::{Module, OraichainTestApp, Wasm, CHAIN_ID, FEE_DENOM};
@@ -35,6 +36,27 @@ pub type AppWrapped = App<
     FailingModule<IbcMsg, IbcQuery, Empty>,
 >;
 pub type Code = Box<dyn Contract<TokenFactoryMsg, TokenFactoryQuery>>;
+
+pub struct ExecuteResponse {
+    /// Response events.
+    pub events: Vec<Event>,
+    /// Response data.
+    pub data: Option<Binary>,
+
+    pub gas_info: GasInfo,
+}
+
+/// They have the same shape, SubMsgResponse is what is returned in reply.
+/// This is just to make some test cases easier.
+impl From<AppResponse> for ExecuteResponse {
+    fn from(res: AppResponse) -> Self {
+        ExecuteResponse {
+            data: res.data,
+            events: res.events,
+            gas_info: GasInfo::default(),
+        }
+    }
+}
 
 macro_rules! impl_mock_token_trait {
     () => {
@@ -153,7 +175,7 @@ macro_rules! impl_mock_token_trait {
             recipient: &str,
             cw20_addr: &str,
             amount: u128,
-        ) -> MockResult<AppResponse> {
+        ) -> MockResult<ExecuteResponse> {
             self.execute(
                 Addr::unchecked(sender),
                 Addr::unchecked(cw20_addr),
@@ -207,7 +229,7 @@ macro_rules! impl_mock_token_trait {
             approver: &str,
             spender: &str,
             amount: u128,
-        ) -> MockResult<AppResponse> {
+        ) -> MockResult<ExecuteResponse> {
             let token_addr = match self.token_map.get(token) {
                 Some(v) => v.to_owned(),
                 None => Addr::unchecked(token),
@@ -346,7 +368,7 @@ impl MultiTestMockApp {
         contract_addr: Addr,
         msg: &T,
         send_funds: &[Coin],
-    ) -> MockResult<AppResponse> {
+    ) -> MockResult<ExecuteResponse> {
         let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
@@ -359,7 +381,7 @@ impl MultiTestMockApp {
 
         self.app.update_block(next_block);
 
-        Ok(response)
+        Ok(response.into())
     }
 
     pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
@@ -566,15 +588,16 @@ impl TestTubeMockApp {
         contract_addr: Addr,
         msg: &T,
         send_funds: &[Coin],
-    ) -> MockResult<AppResponse> {
+    ) -> MockResult<ExecuteResponse> {
         // Wasm::Execute
         let wasm = Wasm::new(&self.app);
         let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
         let execute_res = wasm.execute(contract_addr.as_str(), msg, &funds, signer)?;
 
-        Ok(AppResponse {
+        Ok(ExecuteResponse {
             events: execute_res.events,
             data: Some(Binary::from(execute_res.data.data)),
+            gas_info: execute_res.gas_info,
         })
     }
 
