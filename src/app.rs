@@ -38,6 +38,7 @@ pub type AppWrapped = App<
 >;
 pub type Code = Box<dyn Contract<TokenFactoryMsg, TokenFactoryQuery>>;
 
+#[derive(Default, Clone, Debug)]
 pub struct ExecuteResponse {
     /// Response events.
     pub events: Vec<Event>,
