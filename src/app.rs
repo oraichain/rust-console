@@ -268,15 +268,17 @@ impl MultiTestMockApp {
         denom_creation_fee: Vec<Coin>,
     ) -> (Self, Vec<String>) {
         let mut accounts = vec![];
+        let initial_height = 1 + init_balances.len() as u64 + 1 + 2; // first block + number of account include 1 owner + 2 contract store
         let mut app = BasicAppBuilder::<TokenFactoryMsg, TokenFactoryQuery>::new_custom()
             .with_block(BlockInfo {
-                height: 10,
+                height: initial_height,
                 chain_id: CHAIN_ID.to_string(),
                 time: Timestamp::from_seconds(
                     time::SystemTime::now()
                         .duration_since(time::UNIX_EPOCH)
                         .unwrap()
-                        .as_secs(),
+                        .as_secs()
+                        + initial_height * 5,
                 ),
             })
             .with_custom(TokenFactoryModule::new(denom_creation_fee))
