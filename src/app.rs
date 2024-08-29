@@ -267,6 +267,10 @@ impl MultiTestMockApp {
         &self.app
     }
 
+    pub fn inner_mut(&mut self) -> &mut AppWrapped {
+        &mut self.app
+    }
+
     pub fn new_with_creation_fee(
         init_balances: &[(&str, &[Coin])],
         denom_creation_fee: Vec<Coin>,
@@ -467,6 +471,10 @@ impl TestTubeMockApp {
 
     pub fn inner(&self) -> &OraichainTestApp {
         &self.app
+    }
+
+    pub fn inner_mut(&mut self) -> &mut OraichainTestApp {
+        &mut self.app
     }
 
     pub fn upload(&mut self, code: &[u8]) -> u64 {
