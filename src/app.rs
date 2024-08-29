@@ -252,7 +252,7 @@ macro_rules! impl_mock_token_trait {
 }
 
 pub struct MultiTestMockApp {
-    pub app: AppWrapped,
+    app: AppWrapped,
     token_map: HashMap<String, Addr>, // map token name to address
     token_id: u64,
     tokenfactory_id: u64,
@@ -261,6 +261,10 @@ pub struct MultiTestMockApp {
 impl MultiTestMockApp {
     pub fn new(init_balances: &[(&str, &[Coin])]) -> (Self, Vec<String>) {
         Self::new_with_creation_fee(init_balances, coins(10_000_000u128, FEE_DENOM))
+    }
+
+    pub fn inner(&self) -> &AppWrapped {
+        &self.app
     }
 
     pub fn new_with_creation_fee(
@@ -447,7 +451,7 @@ impl MultiTestMockApp {
 }
 
 pub struct TestTubeMockApp {
-    pub app: OraichainTestApp,
+    app: OraichainTestApp,
     owner: SigningAccount,
     token_map: HashMap<String, Addr>, // map token name to address
     account_map: HashMap<String, SigningAccount>, // map token name to address
@@ -459,6 +463,10 @@ pub struct TestTubeMockApp {
 impl TestTubeMockApp {
     pub fn set_token_contract(&mut self, code: &[u8]) {
         self.token_id = self.upload(code);
+    }
+
+    pub fn inner(&self) -> &OraichainTestApp {
+        &self.app
     }
 
     pub fn upload(&mut self, code: &[u8]) -> u64 {
