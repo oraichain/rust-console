@@ -1,4 +1,4 @@
-## MockApp testing for CosmWasm that implements for both cw-multi-test and osmosis-test-tube packages
+## MockApp for CosmWasm that implements both cw-multi-test and osmosis-test-tube packages
 
 #### How to use?
 
