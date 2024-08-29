@@ -339,8 +339,9 @@ impl MultiTestMockApp {
     }
 
     pub fn upload(&mut self, code: Code) -> u64 {
-        let code_id = self.app.store_code(code);
+        // start block before running tx
         self.app.update_block(next_block);
+        let code_id = self.app.store_code(code);
         code_id
     }
 
@@ -356,11 +357,13 @@ impl MultiTestMockApp {
         send_funds: &[Coin],
         label: &str,
     ) -> MockResult<Addr> {
+        // start block before running tx
+        self.app.update_block(next_block);
         let admin = Some(sender.to_string());
         let contract_addr = self
             .app
             .instantiate_contract(code_id, sender, init_msg, send_funds, label, admin)?;
-        self.app.update_block(next_block);
+
         Ok(contract_addr)
     }
 
@@ -371,6 +374,8 @@ impl MultiTestMockApp {
         msg: &T,
         send_funds: &[Coin],
     ) -> MockResult<ExecuteResponse> {
+        // start block before running tx
+        self.app.update_block(next_block);
         let response = if TypeId::of::<T>() == TypeId::of::<TokenFactoryMsg>() {
             let value = msg.clone();
             let dest = unsafe { std::ptr::read(&value as *const T as *const TokenFactoryMsg) };
@@ -381,14 +386,13 @@ impl MultiTestMockApp {
                 .execute_contract(sender, contract_addr, msg, send_funds)?
         };
 
-        self.app.update_block(next_block);
-
         Ok(response.into())
     }
 
     pub fn sudo<T: Serialize>(&mut self, contract_addr: Addr, msg: &T) -> MockResult<AppResponse> {
-        let response = self.app.wasm_sudo(contract_addr, msg)?;
+        // start block before running tx
         self.app.update_block(next_block);
+        let response = self.app.wasm_sudo(contract_addr, msg)?;
 
         Ok(response)
     }
