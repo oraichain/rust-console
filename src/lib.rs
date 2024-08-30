@@ -5,6 +5,7 @@ pub use anyhow::Result as MockResult;
 pub use app::*;
 pub use cw_multi_test::*;
 pub use mock::*;
+pub use osmosis_test_tube as test_tube;
 
 #[macro_export]
 macro_rules! log {
