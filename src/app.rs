@@ -333,6 +333,21 @@ impl MultiTestMockApp {
         self.token_id = self.upload(code);
     }
 
+    /// change block params require increase block height, do not allow to reverse block height
+    pub fn set_block_time_seconds(&mut self, seconds: u64) {
+        self.app.update_block(|block| {
+            block.height += 1;
+            block.time = Timestamp::from_seconds(seconds);
+        });
+    }
+
+    pub fn set_chain_id(&mut self, chain_id: &str) {
+        self.app.update_block(|block| {
+            block.height += 1;
+            block.chain_id = chain_id.to_string();
+        });
+    }
+
     pub fn get_block_height(&self) -> u64 {
         self.app.block_info().height
     }
@@ -584,6 +599,14 @@ impl TestTubeMockApp {
             },
             accounts,
         )
+    }
+
+    pub fn set_block_time_seconds(&mut self, seconds: u64) {
+        self.app.set_block_time_seconds(seconds)
+    }
+
+    pub fn set_chain_id(&mut self, chain_id: &str) {
+        self.app.set_chain_id(chain_id)
     }
 
     pub fn get_block_height(&self) -> u64 {
