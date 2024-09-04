@@ -385,7 +385,7 @@ impl MultiTestMockApp {
         self.app.wrap()
     }
 
-    pub fn get_account(&self, sender: &Addr) -> String {
+    pub fn get_account(&self, sender: &str) -> String {
         sender.to_string()
     }
 
@@ -519,7 +519,7 @@ impl TestTubeMockApp {
 
     pub fn set_gasless(&mut self, sender: &Addr, contract_addr: &Addr) -> MockResult<()> {
         let gov = GovWithAppAccess::new(&self.app);
-        let signer = self.get_signer(&sender)?;
+        let signer = self.get_signer(sender.as_str())?;
         gov.propose_and_execute(
             "/cosmwasm.wasm.v1.SetGasLessContractsProposal".to_string(),
             SetGasLessContractsProposal {
@@ -534,15 +534,15 @@ impl TestTubeMockApp {
         Ok(())
     }
 
-    pub fn get_account(&self, sender: &Addr) -> String {
-        if let Some(sender_addr) = self.account_name_map.get(sender.as_str()) {
+    pub fn get_account(&self, sender: &str) -> String {
+        if let Some(sender_addr) = self.account_name_map.get(sender) {
             sender_addr.to_string()
         } else {
             sender.to_string()
         }
     }
 
-    pub fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
+    pub fn get_signer(&self, sender: &str) -> MockResult<&SigningAccount> {
         let sender_addr = self.get_account(sender);
 
         let Some(signer) = self.account_map.get(&sender_addr) else {
@@ -554,7 +554,7 @@ impl TestTubeMockApp {
 
     pub fn get_funds_and_signer(
         &self,
-        sender: &Addr,
+        sender: &str,
         send_funds: &[Coin],
     ) -> MockResult<(
         &SigningAccount,
@@ -649,7 +649,7 @@ impl TestTubeMockApp {
         label: &str,
     ) -> MockResult<Addr> {
         let wasm = Wasm::new(&self.app);
-        let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
+        let (signer, funds) = self.get_funds_and_signer(sender.as_str(), send_funds)?;
         let contract_addr = wasm
             .instantiate(
                 code_id,
@@ -674,7 +674,7 @@ impl TestTubeMockApp {
     ) -> MockResult<ExecuteResponse> {
         // Wasm::Execute
         let wasm = Wasm::new(&self.app);
-        let (signer, funds) = self.get_funds_and_signer(&sender, send_funds)?;
+        let (signer, funds) = self.get_funds_and_signer(sender.as_str(), send_funds)?;
         let execute_res = wasm.execute(contract_addr.as_str(), msg, &funds, signer)?;
 
         Ok(ExecuteResponse {
@@ -706,7 +706,7 @@ impl TestTubeMockApp {
     }
 
     pub fn query_balance(&self, account_addr: Addr, denom: String) -> MockResult<Uint128> {
-        let address = self.get_account(&account_addr);
+        let address = self.get_account(account_addr.as_str());
         let bank = osmosis_test_tube::Bank::new(&self.app);
         let balance = bank.query_balance(&QueryBalanceRequest { address, denom })?;
         Ok(balance
@@ -716,7 +716,7 @@ impl TestTubeMockApp {
     }
 
     pub fn query_all_balances(&self, account_addr: Addr) -> MockResult<Vec<Coin>> {
-        let address = self.get_account(&account_addr);
+        let address = self.get_account(account_addr.as_str());
         let bank = osmosis_test_tube::Bank::new(&self.app);
         let all_balances = bank.query_all_balances(&QueryAllBalancesRequest {
             address,
@@ -738,9 +738,9 @@ impl TestTubeMockApp {
         recipient: Addr,
         amount: &[Coin],
     ) -> MockResult<AppResponse> {
-        let to_address = self.get_account(&recipient);
+        let to_address = self.get_account(recipient.as_str());
         let bank = osmosis_test_tube::Bank::new(&self.app);
-        let (signer, funds) = self.get_funds_and_signer(&sender, amount)?;
+        let (signer, funds) = self.get_funds_and_signer(sender.as_str(), amount)?;
         let response = bank.send(
             MsgSend {
                 from_address: signer.address(),
