@@ -385,6 +385,10 @@ impl MultiTestMockApp {
         self.app.wrap()
     }
 
+    pub fn get_account(&self, sender: &Addr) -> String {
+        sender.to_string()
+    }
+
     pub fn instantiate<T: Serialize>(
         &mut self,
         code_id: u64,
