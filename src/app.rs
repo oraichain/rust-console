@@ -530,14 +530,18 @@ impl TestTubeMockApp {
         Ok(())
     }
 
-    fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
-        let sender_addr = if let Some(sender_addr) = self.account_name_map.get(sender.as_str()) {
-            sender_addr
+    fn get_account(&self, sender: &Addr) -> String {
+        if let Some(sender_addr) = self.account_name_map.get(sender.as_str()) {
+            sender_addr.to_string()
         } else {
-            sender.as_str()
-        };
+            sender.to_string()
+        }
+    }
 
-        let Some(signer) = self.account_map.get(sender_addr) else {
+    fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
+        let sender_addr = self.get_account(sender);
+
+        let Some(signer) = self.account_map.get(&sender_addr) else {
             return Err(anyhow::Error::msg("Account not existed"));
         };
 
@@ -698,11 +702,9 @@ impl TestTubeMockApp {
     }
 
     pub fn query_balance(&self, account_addr: Addr, denom: String) -> MockResult<Uint128> {
+        let address = self.get_account(&account_addr);
         let bank = osmosis_test_tube::Bank::new(&self.app);
-        let balance = bank.query_balance(&QueryBalanceRequest {
-            address: account_addr.to_string(),
-            denom,
-        })?;
+        let balance = bank.query_balance(&QueryBalanceRequest { address, denom })?;
         Ok(balance
             .balance
             .map(|b| Uint128::from_str(&b.amount).unwrap())
@@ -710,9 +712,10 @@ impl TestTubeMockApp {
     }
 
     pub fn query_all_balances(&self, account_addr: Addr) -> MockResult<Vec<Coin>> {
+        let address = self.get_account(&account_addr);
         let bank = osmosis_test_tube::Bank::new(&self.app);
         let all_balances = bank.query_all_balances(&QueryAllBalancesRequest {
-            address: account_addr.to_string(),
+            address,
             pagination: None,
         })?;
         Ok(all_balances
@@ -731,12 +734,13 @@ impl TestTubeMockApp {
         recipient: Addr,
         amount: &[Coin],
     ) -> MockResult<AppResponse> {
+        let to_address = self.get_account(&recipient);
         let bank = osmosis_test_tube::Bank::new(&self.app);
         let (signer, funds) = self.get_funds_and_signer(&sender, amount)?;
         let response = bank.send(
             MsgSend {
-                from_address: sender.to_string(),
-                to_address: recipient.to_string(),
+                from_address: signer.address(),
+                to_address,
                 amount: funds,
             },
             signer,
