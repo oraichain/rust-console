@@ -193,7 +193,7 @@ macro_rules! impl_mock_token_trait {
                 Addr::unchecked(sender),
                 Addr::unchecked(cw20_addr),
                 &cw20::Cw20ExecuteMsg::Mint {
-                    recipient: recipient.to_string(),
+                    recipient: self.get_account(recipient),
                     amount: amount.into(),
                 },
                 &[],
