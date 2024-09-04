@@ -105,6 +105,7 @@ macro_rules! impl_mock_token_trait {
             account_addr: &str,
         ) -> MockResult<Uint128> {
             let address = self.get_account(account_addr);
+
             let res: cw20::BalanceResponse = self.query(
                 Addr::unchecked(contract_addr),
                 &cw20::Cw20QueryMsg::Balance { address },
@@ -553,10 +554,11 @@ impl TestTubeMockApp {
         if !self.account_map.contains_key(&sender) {
             // create one
             let acc = self.app.init_account(&[]).unwrap();
-            sender = acc.address();
-            self.account_map.insert(sender.clone(), acc);
+            let acc_addr = acc.address();
+            self.account_map.insert(acc_addr.clone(), acc);
             self.account_name_map
-                .insert(sender.to_string(), sender.clone());
+                .insert(sender.to_string(), acc_addr.clone());
+            sender = acc_addr
         }
         sender
     }
