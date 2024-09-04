@@ -3,8 +3,8 @@ use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_std::{
-    coins, Addr, AllBalanceResponse, BankQuery, Binary, BlockInfo, Coin, Empty, Event, IbcMsg,
-    IbcQuery, QuerierWrapper, QueryRequest, StdError, StdResult, Timestamp, Uint128,
+    coins, Addr, AllBalanceResponse, Attribute, BankQuery, Binary, BlockInfo, Coin, Empty, Event,
+    IbcMsg, IbcQuery, QuerierWrapper, QueryRequest, StdError, StdResult, Timestamp, Uint128,
 };
 use cw20::TokenInfoResponse;
 use cw_multi_test::{
@@ -46,6 +46,17 @@ pub struct ExecuteResponse {
     pub data: Option<Binary>,
 
     pub gas_info: GasInfo,
+}
+
+impl ExecuteResponse {
+    pub fn get_attributes(&self, index: usize) -> Vec<Attribute> {
+        self.events[index].attributes[1..].to_vec()
+    }
+    #[track_caller]
+    pub fn custom_attrs(&self, idx: usize) -> &[Attribute] {
+        assert_eq!(self.events[idx].ty.as_str(), "wasm");
+        &self.events[idx].attributes[1..]
+    }
 }
 
 /// They have the same shape, SubMsgResponse is what is returned in reply.
