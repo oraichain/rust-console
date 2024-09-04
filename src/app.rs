@@ -189,11 +189,12 @@ macro_rules! impl_mock_token_trait {
             cw20_addr: &str,
             amount: u128,
         ) -> MockResult<ExecuteResponse> {
+            let recipient = self.get_account_mut(recipient);
             self.execute(
                 Addr::unchecked(sender),
                 Addr::unchecked(cw20_addr),
                 &cw20::Cw20ExecuteMsg::Mint {
-                    recipient: self.get_account(recipient),
+                    recipient,
                     amount: amount.into(),
                 },
                 &[],
@@ -389,6 +390,10 @@ impl MultiTestMockApp {
         sender.to_string()
     }
 
+    pub fn get_account_mut(&mut self, sender: &str) -> String {
+        sender.to_string()
+    }
+
     pub fn instantiate<T: Serialize>(
         &mut self,
         code_id: u64,
@@ -542,10 +547,24 @@ impl TestTubeMockApp {
         }
     }
 
+    pub fn get_account_mut(&mut self, sender: &str) -> String {
+        let mut sender = self.get_account(sender);
+        if !self.account_map.contains_key(&sender) {
+            // create one
+            let acc = self.app.init_account(&[]).unwrap();
+            sender = acc.address();
+            self.account_map.insert(sender.clone(), acc);
+            self.account_name_map
+                .insert(sender.to_string(), sender.clone());
+        }
+        sender
+    }
+
     pub fn get_signer(&self, sender: &str) -> MockResult<&SigningAccount> {
         let sender_addr = self.get_account(sender);
 
         let Some(signer) = self.account_map.get(&sender_addr) else {
+            // create one
             return Err(anyhow::Error::msg("Account not existed"));
         };
 
@@ -738,7 +757,7 @@ impl TestTubeMockApp {
         recipient: Addr,
         amount: &[Coin],
     ) -> MockResult<AppResponse> {
-        let to_address = self.get_account(recipient.as_str());
+        let to_address = self.get_account_mut(recipient.as_str());
         let bank = osmosis_test_tube::Bank::new(&self.app);
         let (signer, funds) = self.get_funds_and_signer(sender.as_str(), amount)?;
         let response = bank.send(
