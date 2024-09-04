@@ -104,11 +104,10 @@ macro_rules! impl_mock_token_trait {
             contract_addr: &str,
             account_addr: &str,
         ) -> MockResult<Uint128> {
+            let address = self.get_account(account_addr);
             let res: cw20::BalanceResponse = self.query(
                 Addr::unchecked(contract_addr),
-                &cw20::Cw20QueryMsg::Balance {
-                    address: account_addr.to_string(),
-                },
+                &cw20::Cw20QueryMsg::Balance { address },
             )?;
             Ok(res.balance)
         }
@@ -119,11 +118,12 @@ macro_rules! impl_mock_token_trait {
 
         pub fn query_token_balances(&self, account_addr: &str) -> MockResult<Vec<Coin>> {
             let mut balances = vec![];
+            let address = self.get_account(account_addr);
             for (denom, contract_addr) in self.token_map.iter() {
                 let res: cw20::BalanceResponse = self.query(
                     contract_addr.clone(),
                     &cw20::Cw20QueryMsg::Balance {
-                        address: account_addr.to_string(),
+                        address: address.to_string(),
                     },
                 )?;
                 balances.push(Coin {
@@ -248,12 +248,13 @@ macro_rules! impl_mock_token_trait {
                 Some(v) => v.to_owned(),
                 None => Addr::unchecked(token),
             };
+            let spender = self.get_account_mut(spender);
 
             self.execute(
-                Addr::unchecked(approver),
+                Addr::unchecked(self.get_account(approver)),
                 token_addr,
                 &cw20::Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: spender.to_string(),
+                    spender,
                     amount: amount.into(),
                     expires: None,
                 },
