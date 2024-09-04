@@ -530,7 +530,7 @@ impl TestTubeMockApp {
         Ok(())
     }
 
-    fn get_account(&self, sender: &Addr) -> String {
+    pub fn get_account(&self, sender: &Addr) -> String {
         if let Some(sender_addr) = self.account_name_map.get(sender.as_str()) {
             sender_addr.to_string()
         } else {
@@ -538,7 +538,7 @@ impl TestTubeMockApp {
         }
     }
 
-    fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
+    pub fn get_signer(&self, sender: &Addr) -> MockResult<&SigningAccount> {
         let sender_addr = self.get_account(sender);
 
         let Some(signer) = self.account_map.get(&sender_addr) else {
@@ -548,7 +548,7 @@ impl TestTubeMockApp {
         Ok(signer)
     }
 
-    fn get_funds_and_signer(
+    pub fn get_funds_and_signer(
         &self,
         sender: &Addr,
         send_funds: &[Coin],
