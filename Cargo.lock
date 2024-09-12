@@ -1921,6 +1921,7 @@ checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 [[package]]
 name = "osmosis-test-tube"
 version = "19.2.0"
+source = "git+https://github.com/oraichain/test-tube.git?rev=d23969b#d23969b527a6400167d974ddde1cdc6d54e752ee"
 dependencies = [
  "base64 0.13.1",
  "bindgen",
@@ -2954,6 +2955,7 @@ dependencies = [
 [[package]]
 name = "test-tube"
 version = "0.1.7"
+source = "git+https://github.com/oraichain/test-tube.git?rev=d23969b#d23969b527a6400167d974ddde1cdc6d54e752ee"
 dependencies = [
  "base64 0.13.1",
  "cosmrs",
