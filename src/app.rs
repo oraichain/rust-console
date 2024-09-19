@@ -578,7 +578,7 @@ impl TestTubeMockApp {
         let mut account_map = HashMap::default();
         let mut account_name_map = HashMap::default();
         for (owner, init_funds) in init_balances {
-            let acc = app.init_account(init_funds).unwrap();
+            let acc = app.init_account_with_secret(init_funds, owner).unwrap();
             let acc_addr = acc.address();
             account_map.insert(acc_addr.to_string(), acc);
             account_name_map.insert(owner.to_string(), acc_addr.to_string());
