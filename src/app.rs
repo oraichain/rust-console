@@ -107,9 +107,14 @@ impl MockApp {
         send_funds: &[Coin],
         label: &str,
     ) -> MockResult<Addr> {
-        let contract_addr = self
-            .app
-            .instantiate_contract(code_id, sender, init_msg, send_funds, label, None)?;
+        let contract_addr = self.app.instantiate_contract(
+            code_id,
+            sender.clone(),
+            init_msg,
+            send_funds,
+            label,
+            Some(sender.to_string()),
+        )?;
         self.app.update_block(next_block);
         Ok(contract_addr)
     }
